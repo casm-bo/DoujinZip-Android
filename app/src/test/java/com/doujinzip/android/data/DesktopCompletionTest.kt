@@ -18,4 +18,14 @@ class DesktopCompletionTest {
         val request = DownloadRequest(galleryId=42,title="Synthetic",desktopQueueId=8)
         assertEquals(8L, decodeDownloadRequests(encodeDownloadRequests(listOf(request))).single().desktopQueueId)
     }
+    @Test fun missedCompletionsAreRecoveredAfterRestart() {
+        val requests = (1L..3L).map { id -> DownloadRequest(galleryId=42, title="Synthetic", profileId="test-pc",
+            status=if (id == 1L) RequestStatus.COMPLETED else RequestStatus.SENT, desktopQueueId=id) }
+        val restored = decodeDownloadRequests(encodeDownloadRequests(requests)).map { it.recover() }
+        assertTrue(restored.confirmDesktopCompletions("test-pc", (1L..3L).map { item(it, DownloadStatus.COMPLETED) })
+            .all { it.status == RequestStatus.COMPLETED })
+        val interrupted = requests.last().copy(status=RequestStatus.SENDING, desktopAttempted=true).recover()
+        assertEquals(RequestStatus.COMPLETED, listOf(interrupted).confirmDesktopCompletions("test-pc", listOf(item(3, DownloadStatus.COMPLETED))).single().status)
+        assertEquals(RequestStatus.WAITING, listOf(interrupted.copy(desktopAttempted=false)).confirmDesktopCompletions("test-pc", listOf(item(3, DownloadStatus.COMPLETED))).single().status)
+    }
 }

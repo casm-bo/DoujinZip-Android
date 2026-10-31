@@ -121,6 +121,6 @@ internal fun addDownloadRequest(requests: List<DownloadRequest>, request: Downlo
 internal fun List<DownloadRequest>.confirmDesktopCompletions(profileId: String, queue: List<com.doujinzip.android.model.DownloadQueueItem>): List<DownloadRequest> = map { request ->
     val completed = queue.any { item -> item.status == com.doujinzip.android.model.DownloadStatus.COMPLETED &&
         if (request.desktopQueueId != null) item.id == request.desktopQueueId else item.galleryId == request.galleryId }
-    if (request.target == DownloadTarget.DESKTOP && request.profileId == profileId && request.status == RequestStatus.SENT && completed)
+    if (request.target == DownloadTarget.DESKTOP && request.profileId == profileId && (request.status == RequestStatus.SENT || (request.status == RequestStatus.WAITING && request.desktopAttempted)) && completed)
         request.copy(status = RequestStatus.COMPLETED, error = null) else request
 }

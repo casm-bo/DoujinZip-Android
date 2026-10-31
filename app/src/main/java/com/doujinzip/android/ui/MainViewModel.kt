@@ -3768,10 +3768,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val pending = requestStore.requests.value.filter {
             it.pendingForDesktop(profile.id) && (onlyRequestId == null || it.id == onlyRequestId)
         }
-        if (pending.isEmpty()) return@withLock emptyList()
         uiState = uiState.copy(isDownloadSyncing = true, downloadQueueError = null)
         val errors = mutableListOf<String>()
         try {
+            val downloads = sortDownloadQueueNewest(client.getDownloads(profile))
+            withContext(Dispatchers.IO) { requestStore.update { it.confirmDesktopCompletions(profile.id, downloads) } }
+            if (selectedProfile()?.id == profile.id) uiState = uiState.copy(downloadQueue = downloads)
+            if (pending.isEmpty()) return@withLock emptyList()
             val status = client.getStatus(profile.baseUrl)
             check(!requireRequestIds || status.downloadRequestIds) {
                 strings[R.string.msg_update_desktop_to_a_version_supporting_request_ids_pen]
