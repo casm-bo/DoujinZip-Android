@@ -919,7 +919,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         libraryBookIdForGallery(galleryId)?.let { bookId ->
             val book = uiState.libraryBooks.first { it.id == bookId }
             val workspace = uiState.galleryWorkspace
-            workspace.tabs.firstOrNull { it.groupId == workspace.activeTab.groupId &&
+            workspace.tabs.firstOrNull { it.groupId == null &&
                 (it.currentPage as? BrowserPage.LibraryBook)?.bookId == bookId }?.let {
                 return BackgroundGalleryTab(workspace, it.id, alreadyOpen = true, galleryWorkspace = true)
             }

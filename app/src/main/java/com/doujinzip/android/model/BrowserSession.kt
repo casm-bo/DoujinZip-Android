@@ -194,7 +194,7 @@ fun BrowserWorkspace.selectSearchTab(
 fun BrowserWorkspace.openTab(
     page: BrowserPage = BrowserPage.Search(),
     activate: Boolean = true,
-    groupId: String? = activeTab.groupId,
+    groupId: String? = null,
 ): BrowserWorkspace {
     val tab = BrowserTab(history = listOf(page), groupId = groupId?.takeIf { id ->
         groups.any { it.id == id && !it.isArchived }
@@ -210,7 +210,7 @@ data class BackgroundGalleryTab(
 )
 
 fun BrowserWorkspace.openGalleryInBackground(galleryId: Long, title: String): BackgroundGalleryTab {
-    tabs.firstOrNull { it.groupId == activeTab.groupId &&
+    tabs.firstOrNull { it.groupId == null &&
         (it.currentPage as? BrowserPage.OnlineGallery)?.galleryId == galleryId }?.let {
         return BackgroundGalleryTab(this, it.id, alreadyOpen = true)
     }

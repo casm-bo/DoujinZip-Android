@@ -46,16 +46,32 @@ class BrowserTabGroupsTest {
     }
 
     @Test
-    fun newTabsInheritGroupAndClosingLastTabKeepsArchivedGroups() {
+    fun newTabsStayOutsideGroupAndClosingLastTabKeepsArchivedGroups() {
         val original = BrowserWorkspace.initial().let { it.createGroup(setOf(it.activeTabId)) }
         val groupId = original.groups.single().id
         val expanded = original.openTab()
-        assertEquals(groupId, expanded.activeTab.groupId)
+        assertNull(expanded.activeTab.groupId)
+        assertEquals(groupId, expanded.tabs.first().groupId)
+        assertEquals(groupId, original.openTab(groupId=groupId).activeTab.groupId)
         val archived = expanded.archiveGroup(groupId, BrowserPage.LibraryHome())
         val closed = archived.closeTab(archived.activeTabId, BrowserPage.LibraryHome())
         assertEquals(archived.groups, closed.groups)
         assertTrue(closed.activeTab.currentPage is BrowserPage.LibraryHome)
         assertTrue(closed.deleteArchivedGroup(groupId).groups.isEmpty())
+    }
+
+    @Test fun backgroundTabsFromGroupsStayOutsideAndReuseOnlyStandaloneTabs() {
+        val page = BrowserPage.OnlineGallery(42, "Synthetic")
+        val grouped = BrowserWorkspace.initial(page).let { it.createGroup(setOf(it.activeTabId)) }
+        val opened = grouped.openGalleryInBackground(42, "Synthetic")
+        assertFalse(opened.alreadyOpen)
+        assertEquals(grouped.activeTabId, opened.workspace.activeTabId)
+        assertNull(opened.workspace.tabs.last().groupId)
+        assertEquals(grouped.groups, opened.workspace.groups)
+        val repeated = opened.workspace.openGalleryInBackground(42, "Synthetic")
+        assertTrue(repeated.alreadyOpen)
+        assertEquals(opened.tabId, repeated.tabId)
+        assertEquals(opened.workspace, repeated.workspace)
     }
 
     @Test
