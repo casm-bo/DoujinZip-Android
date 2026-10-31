@@ -139,6 +139,9 @@ internal fun SeriesOptionsEditor(name: String, books: List<LibraryBook>, assignm
     onSave: (Map<String, CustomSeriesAssignment>, List<String>) -> Boolean, onDone: () -> Unit, onCancel: () -> Unit,
     displayTitle: String = name) {
     val strings = androidx.compose.ui.platform.LocalResources.current
+    val context = LocalContext.current
+    val preferences = remember(context) { com.doujinzip.android.security.LibraryPreferenceStore(context) }
+    var sort by remember { mutableStateOf(preferences.loadSeriesEpisodeSort()) }
     val keyboard = LocalSoftwareKeyboardController.current
     val baselineJson = rememberSaveable(name) { JSONObject().apply { assignments.forEach { (id, entry) ->
         put(id, JSONObject().put("name", entry.name).put("order", entry.order).put("modifiedAt", entry.modifiedAt))
@@ -160,25 +163,30 @@ internal fun SeriesOptionsEditor(name: String, books: List<LibraryBook>, assignm
             Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(displayTitle, Modifier.weight(1f).padding(end = 8.dp), maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
-                    TextButton(onClick = onCancel) { Text(strings[R.string.ui_cancel]) }
-                    Button(onClick = { failed = !onSave(baseline, order); if (!failed) onDone() }, enabled = !adding && order.all { it in byId }) { Text(strings[R.string.ui_save]) }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = {
+                    TextButton(onClick = { if (adding) { adding = false; chosen = emptySet() } else onCancel() }) {
+                        Text(strings[if (adding) R.string.ui_return else R.string.ui_cancel])
+                    }
+                    Button(onClick = {
                         if (adding) { order = order + chosen.filter { it !in order }; chosen = emptySet(); adding = false }
-                        else { query = ""; adding = true }
-                    }, modifier = Modifier.weight(1f)) { ActionIcon(ActionSymbol.ADD); Text(strings[if (adding) R.string.ui_confirm else R.string.ui_add_episodes], Modifier.padding(start = 6.dp)) }
-                    OutlinedButton(onClick = { order = order.filterNot { it in selected }; selected = emptySet() }, enabled = !adding && selected.isNotEmpty(), modifier = Modifier.weight(1f)) {
+                        else { failed = !onSave(baseline, order); if (!failed) onDone() }
+                    }, enabled = if (adding) chosen.isNotEmpty() else order.all { it in byId }) {
+                        Text(strings[if (adding) R.string.ui_confirm else R.string.ui_save])
+                    }
+                }
+                if (!adding) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { query = ""; adding = true }, modifier = Modifier.weight(1f)) {
+                        ActionIcon(ActionSymbol.ADD); Text(strings[R.string.ui_add_episodes], Modifier.padding(start = 6.dp))
+                    }
+                    OutlinedButton(onClick = { order = order.filterNot { it in selected }; selected = emptySet() }, enabled = selected.isNotEmpty(), modifier = Modifier.weight(1f)) {
                         ActionIcon(ActionSymbol.DELETE); Text(strings[R.string.ui_exclude_episodes], Modifier.padding(start = 6.dp))
                     }
                 }
-                if (adding) TextButton(onClick = { adding = false; chosen = emptySet() }) { Text(strings[R.string.ui_return]) }
             }
         }
         if (failed) Text(strings[R.string.ui_series_edit_conflict], Modifier.padding(12.dp), color = MaterialTheme.colorScheme.error)
         if (adding) {
-            val candidates = remember(books, order, query, assignments) {
-                filterLibraryBooksByQuery(books.filter { it.id !in order }, query, assignments)
+            val candidates = remember(books, order, query, assignments, sort) {
+                sortLibraryBooks(filterLibraryBooksByQuery(books.filter { it.id !in order }, query, assignments), sort)
             }
             Column(Modifier.weight(1f)) {
                 OutlinedTextField(query, { query = it }, singleLine = true,
@@ -191,6 +199,9 @@ internal fun SeriesOptionsEditor(name: String, books: List<LibraryBook>, assignm
                     } }),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }))
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.End) {
+                    LibrarySortMenu(sort, { sort = it; preferences.saveSeriesEpisodeSort(it) })
+                }
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(candidates, key = { it.id }) { book ->
                 LibraryWorkCard(book, 0, grid = false, favorite = false, read = false,

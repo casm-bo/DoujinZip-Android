@@ -257,6 +257,8 @@ class LibraryPreferenceStore(context: Context, fileName: String = FILE_NAME) {
     fun loadLibrarySort(): LibrarySort = enumPreference(KEY_LIBRARY_SORT, LibrarySort.NEWEST)
     fun loadSeriesDestinationSort(): LibrarySort = enumPreference("series_destination_sort", LibrarySort.NEWEST)
     fun saveSeriesDestinationSort(value: LibrarySort) = preferences.edit().putString("series_destination_sort", value.name).apply()
+    fun loadSeriesEpisodeSort(): LibrarySort = enumPreference("series_episode_sort", LibrarySort.NEWEST)
+    fun saveSeriesEpisodeSort(value: LibrarySort) = preferences.edit().putString("series_episode_sort", value.name).apply()
     fun loadFavoritesOnly(): Boolean = preferences.getBoolean("library_favorites_only", false)
     fun saveFavoritesOnly(value: Boolean) { preferences.edit().putBoolean("library_favorites_only", value).apply() }
     fun loadReadFilter(): com.doujinzip.android.model.LibraryReadFilter = enumPreference("library_read_filter", com.doujinzip.android.model.LibraryReadFilter.ALL)

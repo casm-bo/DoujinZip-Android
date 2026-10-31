@@ -1876,15 +1876,18 @@ internal fun visibleLibraryBooks(state: MainUiState): List<LibraryBook> {
             }
         }
         .toList()
-    return when (state.librarySort) {
-        LibrarySort.TITLE_ASC -> filtered.sortedBy { it.title.lowercase() }
-        LibrarySort.TITLE_DESC -> filtered.sortedByDescending { it.title.lowercase() }
-        LibrarySort.ARTIST_ASC -> filtered.sortedWith(libraryBookArtistComparator(descending = false))
-        LibrarySort.ARTIST_DESC -> filtered.sortedWith(libraryBookArtistComparator(descending = true))
-        LibrarySort.NEWEST -> filtered.sortedByDescending(LibraryBook::modifiedAt)
-        LibrarySort.OLDEST -> filtered.sortedBy(LibraryBook::modifiedAt)
-    }
+    return sortLibraryBooks(filtered, state.librarySort)
 }
+
+internal fun sortLibraryBooks(books: List<LibraryBook>, sort: LibrarySort): List<LibraryBook> =
+    when (sort) {
+        LibrarySort.TITLE_ASC -> books.sortedBy { it.title.lowercase() }
+        LibrarySort.TITLE_DESC -> books.sortedByDescending { it.title.lowercase() }
+        LibrarySort.ARTIST_ASC -> books.sortedWith(libraryBookArtistComparator(descending = false))
+        LibrarySort.ARTIST_DESC -> books.sortedWith(libraryBookArtistComparator(descending = true))
+        LibrarySort.NEWEST -> books.sortedByDescending(LibraryBook::modifiedAt)
+        LibrarySort.OLDEST -> books.sortedBy(LibraryBook::modifiedAt)
+    }
 
 internal fun libraryFilterSignature(state: MainUiState): String = buildString {
     append(state.libraryQuery.length).append(':').append(state.libraryQuery)
