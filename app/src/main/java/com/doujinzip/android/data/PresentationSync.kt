@@ -8,6 +8,7 @@ import com.doujinzip.android.network.CompanionClient
 class PresentationSync(private val client: CompanionClient, private val store: PresentationStore, private val covers: PresentationCovers) {
     suspend fun sync(profile: DesktopProfile) {
         store.adoptDeviceEdits()
+        store.reconcileIdenticalConflicts()
         // Recover a lost acknowledgement before treating our own server edit as a conflict.
         for (record in store.pending()) {
             record.value.coverHash?.let { client.transferCover(profile, it, covers.bytes(it)) }

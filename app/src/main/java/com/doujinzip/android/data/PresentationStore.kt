@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteDatabase
 import com.doujinzip.android.model.GalleryPresentation
 import com.doujinzip.android.model.seriesPresentationKey
 import com.doujinzip.android.model.seriesCoverPresentationKey
+import com.doujinzip.android.model.hasSameContent
 import java.util.UUID
 import org.json.JSONObject
 
@@ -35,6 +36,12 @@ class PresentationStore(private val identity: LibraryIdentityStore, private val 
     }
     fun pending(): List<PresentationRecord> = all().filter { it.dirty && it.conflict == null }
 
+    fun reconcileIdenticalConflicts() = transaction {
+        all().forEach { record -> record.conflict?.let { remote ->
+            if (remote.version >= record.value.version && record.value.hasSameContent(remote)) put(PresentationRecord(remote))
+        } }
+    }
+
     fun copySeriesOverride(oldName: String, newName: String) = transaction {
         if (oldName == newName) return@transaction
         listOf(seriesPresentationKey(oldName) to seriesPresentationKey(newName),
@@ -61,6 +68,7 @@ class PresentationStore(private val identity: LibraryIdentityStore, private val 
         when {
             previous == null -> put(PresentationRecord(value))
             value.version <= maxOf(previous.value.version, previous.conflict?.version ?: 0L) -> Unit
+            previous.value.hasSameContent(value) -> put(PresentationRecord(value))
             previous.dirty -> put(previous.copy(conflict = value))
             else -> put(PresentationRecord(value))
         }
@@ -76,7 +84,10 @@ class PresentationStore(private val identity: LibraryIdentityStore, private val 
     }
     fun conflict(key: String, remote: GalleryPresentation) = transaction {
         require(key == remote.key)
-        get(key)?.let { put(it.copy(conflict = remote)) }
+        get(key)?.let {
+            if (remote.version < maxOf(it.value.version, it.conflict?.version ?: 0L)) return@transaction
+            put(if (it.value.hasSameContent(remote)) PresentationRecord(remote) else it.copy(conflict = remote))
+        }
     }
     fun acceptRemote(key: String) = transaction { get(key)?.conflict?.let { put(PresentationRecord(it)) } }
 

@@ -34,6 +34,9 @@ data class GalleryPresentation(
     }
 }
 
+internal fun GalleryPresentation.hasSameContent(other: GalleryPresentation): Boolean =
+    copy(version = 0, revision = 0) == other.copy(version = 0, revision = 0)
+
 fun LibraryBook.presentationKey(): String = metadata.hitomiId?.toLongOrNull()?.takeIf { it > 0 }?.let { "hitomi:$it" }
     ?: "sync:${requireNotNull(syncId) { "Book has no stable identity" }.lowercase()}"
 

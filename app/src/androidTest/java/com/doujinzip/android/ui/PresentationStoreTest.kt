@@ -7,6 +7,27 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PresentationStoreTest {
+    @Test fun identicalContentClearsOldAndNewConflictsWithoutLosingDifferentEdits() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val name = "same-content-${System.nanoTime()}.db"
+        try { LibraryIdentityStore(context, name).use { identity ->
+            val store = PresentationStore(identity)
+            val value = GalleryPresentation("hitomi:42", "Synthetic", LibraryMetadata())
+            store.saveLocal(value)
+            store.conflict(value.key, value.copy(version=1, revision=1))
+            assertFalse(store.get(value.key)!!.dirty)
+            store.saveLocal(value.copy(title="Phone"))
+            store.conflict(value.key, value.copy(version=2, revision=2))
+            assertNotNull(store.get(value.key)!!.conflict)
+            store.saveLocal(value)
+            store.reconcileIdenticalConflicts()
+            assertFalse(store.get(value.key)!!.dirty)
+            assertEquals(2L, store.get(value.key)!!.value.version)
+            store.saveLocal(value)
+            store.receive(value.copy(version=3, revision=3))
+            assertFalse(store.get(value.key)!!.dirty)
+        } } finally { context.deleteDatabase(name) }
+    }
     @Test fun seriesOverridesSurviveRestartRenameAndStaySeparateFromEpisodesAndProfiles() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val databaseName = "series-presentation-${System.nanoTime()}.db"
