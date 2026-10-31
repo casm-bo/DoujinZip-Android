@@ -31,6 +31,12 @@ import androidx.compose.ui.platform.LocalContext
 import java.text.DateFormat
 import java.util.Date
 
+internal fun sortSavedSubscriptions(records: List<com.doujinzip.android.data.SubscriptionRecord>, sort: Int) = when (sort) {
+    1 -> records.sortedBy { it.value.name.lowercase() }
+    2 -> records
+    else -> records.asReversed()
+}
+
 @Composable
 internal fun SubscriptionScreen(state: MainUiState, onClose: () -> Unit, onTab: (Int) -> Unit,
     onRefresh: () -> Unit, onRead: (Long?) -> Unit, onEdit: (SearchSubscription?) -> Unit,
@@ -47,7 +53,8 @@ internal fun SubscriptionScreen(state: MainUiState, onClose: () -> Unit, onTab: 
     }
     var savedQuery by rememberSaveable { mutableStateOf("") }
     var savedFilter by rememberSaveable { mutableStateOf(0) }
-    var savedSort by rememberSaveable { mutableStateOf(0) }
+    val preferences = remember(context) { SubscriptionPreferences(context) }
+    var savedSort by remember { mutableStateOf(preferences.loadSavedSort()) }
     var filterMenu by remember { mutableStateOf(false) }
     var sortMenu by remember { mutableStateOf(false) }
     val savedRecords = remember(state.subscriptions, savedQuery, savedFilter, savedSort) {
@@ -55,12 +62,7 @@ internal fun SubscriptionScreen(state: MainUiState, onClose: () -> Unit, onTab: 
             (!record.value.deleted || record.conflict != null) && record.value.matchesSavedSearch(savedQuery) &&
                 when (savedFilter) { 1 -> record.value.enabled; 2 -> !record.value.enabled; 3 -> record.error != null || record.conflict != null; else -> true }
         }
-        when (savedSort) {
-            1 -> filtered.sortedBy { it.value.name.lowercase() }
-            2 -> filtered.sortedByDescending { it.checkedAt }
-            3 -> filtered.sortedBy { it.checkedAt }
-            else -> filtered
-        }
+        sortSavedSubscriptions(filtered, savedSort)
     }
     var deleting by remember { mutableStateOf<SearchSubscription?>(null) }
     var syncOptions by rememberSaveable { mutableStateOf(false) }
@@ -111,7 +113,7 @@ internal fun SubscriptionScreen(state: MainUiState, onClose: () -> Unit, onTab: 
                             }
                             Box {
                                 OutlinedButton({sortMenu=true},contentPadding=PaddingValues(horizontal=10.dp,vertical=2.dp),modifier=Modifier.heightIn(min=32.dp)) {ActionIcon(ActionSymbol.SORT);Spacer(Modifier.width(8.dp));Text(strings[R.string.saved_sort_labels].split("|")[savedSort])}
-                                DropdownMenu(sortMenu,{sortMenu=false}) {strings[R.string.saved_sort_labels].split("|").forEachIndexed { index,label -> DropdownMenuItem(text={Text(label)},onClick={savedSort=index;sortMenu=false})}}
+                                DropdownMenu(sortMenu,{sortMenu=false}) {strings[R.string.saved_sort_labels].split("|").forEachIndexed { index,label -> DropdownMenuItem(text={Text(label)},onClick={savedSort=index;preferences.saveSavedSort(index);sortMenu=false})}}
                             }
                         }
                     }

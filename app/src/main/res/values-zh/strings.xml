@@ -614,7 +614,7 @@
     <string name="download_complete">已完成</string>
     <string name="download_incomplete">未完成</string>
     <string name="saved_filter_labels">全部|已启用|已暂停|需要检查</string>
-    <string name="saved_sort_labels">默认顺序|名称|最近检查|最早检查</string>
+    <string name="saved_sort_labels">最近添加|名称|最早添加</string>
     <string name="saved_subscription_search">搜索订阅名称与标签（-标签排除）</string>
     <string name="server_address_label">地址: %1$s</string>
     <string name="server_name_label">名称: %1$s</string>

@@ -317,7 +317,7 @@ private fun validateWorkspace(root: JSONObject) {
 private fun backupPreferenceTypeValid(key: String, value: Any): Boolean = when {
     key.endsWith("_width") || key == "font_size" -> value is Float
     key.endsWith("_color") -> value is Long
-    key in setOf("interval", "sync_interval", "library_grid_columns", "search_grid_columns") || key.startsWith("book_page:") || key.startsWith("online_page:") -> value is Int
+    key in setOf("interval", "sync_interval", "saved_sort", "library_grid_columns", "search_grid_columns") || key.startsWith("book_page:") || key.startsWith("online_page:") -> value is Int
     key in setOf("history_grid", "notifications", "hide_locked", "sync_enabled", "records_v2", "recording", "active_gallery_workspace", "hide_desktop_download_alert", "viewer_page_number", "viewer_hide_thumbnails", "viewer_keep_screen_on", "viewer_custom_tap_zones_enabled", "search_grid_view", "library_favorites_only") -> value is Boolean
     key in setOf("preferred_languages", "custom_languages", "known_filter_tokens", "viewed_gallery_ids", "search_tag_filters", "custom_blocked_tags", "favorite_book_ids", "favorite_series_names", "read_book_ids", "hidden_book_ids") -> value is Set<*>
     else -> value is String

@@ -614,7 +614,7 @@
     <string name="download_complete">完了</string>
     <string name="download_incomplete">未完了</string>
     <string name="saved_filter_labels">すべて|有効|一時停止|要確認</string>
-    <string name="saved_sort_labels">標準|名前順|確認が新しい順|確認が古い順</string>
+    <string name="saved_sort_labels">登録が新しい順|名前順|登録が古い順</string>
     <string name="saved_subscription_search">登録名・タグを検索（-タグで除外）</string>
     <string name="server_address_label">アドレス: %1$s</string>
     <string name="server_name_label">名前: %1$s</string>

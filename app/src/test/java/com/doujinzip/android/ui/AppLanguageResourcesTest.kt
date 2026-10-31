@@ -17,6 +17,13 @@ class AppLanguageResourcesTest {
         }
     }
 
+    @Test fun `subscription sort has three translated registration options`() {
+        listOf("values", "values-ko", "values-ja", "values-zh").forEach { folder ->
+            assertEquals(folder, 3, strings(folder).getValue("saved_sort_labels").split("|").size)
+        }
+        assertEquals("최근 등록순|이름순|오래된 등록순", strings("values-ko").getValue("saved_sort_labels"))
+    }
+
     @Test fun `every supported language has all messages with compatible format arguments`() {
         val baseline = strings("values")
         val placeholder = Regex("%\\d+\\\$[sd]")

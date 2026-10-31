@@ -21,6 +21,11 @@ internal fun subscriptionSyncDue(options: SubscriptionOptions, now: Long, lastAt
 }
 class SubscriptionPreferences(context: Context) {
     private val preferences = context.getSharedPreferences("subscription_options",Context.MODE_PRIVATE)
+    fun loadSavedSort(): Int = preferences.getInt("saved_sort", 0).takeIf { it in 0..2 } ?: 0
+    fun saveSavedSort(value: Int) {
+        require(value in 0..2)
+        preferences.edit().putInt("saved_sort", value).apply()
+    }
     fun load() = SubscriptionOptions(normalizeSubscriptionCheckInterval(preferences.getInt("interval",60)),
         preferences.getBoolean("notifications",true),preferences.getBoolean("hide_locked",true),preferences.getBoolean("sync_enabled",true),
         preferences.getInt("sync_interval",15).takeIf { it in intervals } ?: 15)
