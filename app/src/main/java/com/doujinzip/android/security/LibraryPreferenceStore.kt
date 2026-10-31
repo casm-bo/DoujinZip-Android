@@ -255,6 +255,8 @@ class LibraryPreferenceStore(context: Context, fileName: String = FILE_NAME) {
         preferences.edit().putInt(KEY_LIBRARY_GRID_COLUMNS, value.coerceIn(2, 4)).apply()
 
     fun loadLibrarySort(): LibrarySort = enumPreference(KEY_LIBRARY_SORT, LibrarySort.NEWEST)
+    fun loadSeriesDestinationSort(): LibrarySort = enumPreference("series_destination_sort", LibrarySort.NEWEST)
+    fun saveSeriesDestinationSort(value: LibrarySort) = preferences.edit().putString("series_destination_sort", value.name).apply()
     fun loadFavoritesOnly(): Boolean = preferences.getBoolean("library_favorites_only", false)
     fun saveFavoritesOnly(value: Boolean) { preferences.edit().putBoolean("library_favorites_only", value).apply() }
     fun loadReadFilter(): com.doujinzip.android.model.LibraryReadFilter = enumPreference("library_read_filter", com.doujinzip.android.model.LibraryReadFilter.ALL)

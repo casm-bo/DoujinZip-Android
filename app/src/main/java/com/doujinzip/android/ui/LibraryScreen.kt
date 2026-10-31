@@ -167,7 +167,11 @@ internal fun libraryMainEntries(
         grouped.map { (name, members) -> LibraryMainEntry.Series(name, members.sortedWith(
             compareBy<LibraryBook> { assignments.getValue(it.id).order }.thenBy { it.id },
         )) }
-    return when (sort) {
+    return sortLibraryMainEntries(entries, sort)
+}
+
+internal fun sortLibraryMainEntries(entries: List<LibraryMainEntry>, sort: LibrarySort): List<LibraryMainEntry> =
+    when (sort) {
         LibrarySort.TITLE_ASC -> entries.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
         LibrarySort.TITLE_DESC -> entries.sortedWith(compareByDescending<LibraryMainEntry, String>(String.CASE_INSENSITIVE_ORDER) { it.title })
         LibrarySort.ARTIST_ASC -> entries.sortedWith(libraryMainEntryArtistComparator(false))
@@ -175,7 +179,6 @@ internal fun libraryMainEntries(
         LibrarySort.NEWEST -> entries.sortedByDescending { it.modifiedAt }
         LibrarySort.OLDEST -> entries.sortedBy { it.modifiedAt }
     }
-}
 
 private fun LibraryMainEntry.scrollKey(): String = when (this) {
     is LibraryMainEntry.Book -> "book:${book.id}"
@@ -1046,7 +1049,7 @@ internal fun LibrarySort.withDirection(ascending: Boolean): LibrarySort = when (
 }
 
 @Composable
-private fun LibrarySortMenu(sort: LibrarySort, onSortChange: (LibrarySort) -> Unit, onMenuChange: (Boolean) -> Unit) {
+internal fun LibrarySortMenu(sort: LibrarySort, onSortChange: (LibrarySort) -> Unit, onMenuChange: (Boolean) -> Unit = {}) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     var expanded by remember { mutableStateOf(false) }
     Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {

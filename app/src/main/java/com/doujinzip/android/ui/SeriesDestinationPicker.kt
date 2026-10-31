@@ -11,6 +11,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.doujinzip.android.R
+import com.doujinzip.android.model.LibrarySort
+import com.doujinzip.android.model.seriesPresentationKey
+import com.doujinzip.android.security.LibraryPreferenceStore
+
+internal fun seriesDestinationNames(state: MainUiState, query: String, sort: LibrarySort): List<String> {
+    val members = state.libraryBooks.filter { it.id in state.customSeriesByBookId }
+        .groupBy { state.customSeriesByBookId.getValue(it.id).name }
+    val terms = query.trim().split(Regex("\\s+")).filter(String::isNotBlank)
+    val entries = state.customSeriesByBookId.values.map { it.name }.distinct().map { name ->
+        LibraryMainEntry.Series(name, members[name].orEmpty())
+    }.filter { entry ->
+        val presentation = state.presentations[seriesPresentationKey(entry.name)]?.value
+        val title = presentation?.title ?: entry.name
+        val artists = presentation?.metadata?.artists ?: entry.books.flatMap { it.metadata.artists }
+        terms.all { term -> title.contains(term, ignoreCase = true) || artists.any { it.contains(term, ignoreCase = true) } }
+    }
+    return sortLibraryMainEntries(entries, sort).map { (it as LibraryMainEntry.Series).name }
+}
 
 @Composable
 internal fun SeriesDestinationPicker(
@@ -18,7 +36,11 @@ internal fun SeriesDestinationPicker(
     onAppend: (String) -> Boolean, onDone: () -> Unit, onCancel: () -> Unit,
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
-    val names = remember(state.customSeriesByBookId) { state.customSeriesByBookId.values.map { it.name }.distinct().sortedWith(String.CASE_INSENSITIVE_ORDER) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val preferences = remember(context) { LibraryPreferenceStore(context) }
+    var sort by remember { mutableStateOf(preferences.loadSeriesDestinationSort()) }
+    var query by rememberSaveable { mutableStateOf("") }
+    val names = remember(state.libraryBooks, state.customSeriesByBookId, state.presentations, query, sort) { seriesDestinationNames(state, query, sort) }
     val members = remember(state.libraryBooks, state.customSeriesByBookId) {
         state.libraryBooks.filter { it.id in state.customSeriesByBookId }.groupBy { state.customSeriesByBookId.getValue(it.id).name }
             .mapValues { (_, books) -> books.sortedBy { state.customSeriesByBookId.getValue(it.id).order } }
@@ -34,6 +56,12 @@ internal fun SeriesDestinationPicker(
                 }
                 TextButton(onClick = onCancel) { Text(strings[R.string.ui_cancel]) }
             }
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(query, { query = it }, singleLine = true, modifier = Modifier.weight(1f),
+                placeholder = { Text(strings[R.string.ui_search]) }, leadingIcon = { ActionIcon(ActionSymbol.SEARCH) })
+            LibrarySortMenu(sort, { sort = it; preferences.saveSeriesDestinationSort(it) })
         }
         if (names.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(strings[R.string.ui_no_existing_series]) }
         else LazyVerticalGrid(GridCells.Fixed(if (list) 1 else columns), contentPadding = PaddingValues(16.dp),
