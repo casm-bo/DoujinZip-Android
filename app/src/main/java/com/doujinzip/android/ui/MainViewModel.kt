@@ -594,6 +594,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+    fun resolvePresentationConflict(record: com.doujinzip.android.data.PresentationRecord, usePhone: Boolean) {
+        val profileId = uiState.selectedProfileId
+        viewModelScope.launch {
+            runOperation {
+                presentationSyncMutex.withLock {
+                    withContext(Dispatchers.IO) { presentationStore(profileId).resolveConflict(record, usePhone) }
+                }
+                if (uiState.selectedProfileId == profileId) { reloadPresentations(); scheduleLibrarySync() }
+            }
+        }
+    }
     fun classifyGallery(id: Long, mode: com.doujinzip.android.model.ViewerReadingMode) {
         uiState.galleryCache[id]?.presentation()?.let { recordReadingMode(it, mode) }
     }

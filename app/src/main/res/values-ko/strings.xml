@@ -621,4 +621,15 @@
     <string name="settings_personal_group">개인 설정</string>
     <string name="settings_reader_group">리더 및 구독 알림 설정</string>
     <string name="settings_paths_group">경로</string>
+    <string name="conflict_title">메타데이터 충돌 해결</string>
+    <string name="conflict_explanation">다른 항목만 표시합니다. 보존할 전체 내용을 선택하세요.</string>
+    <string name="conflict_phone">휴대폰</string>
+    <string name="conflict_pc">PC</string>
+    <string name="conflict_use_phone">휴대폰 수정 사용</string>
+    <string name="conflict_cover">표지</string>
+    <string name="conflict_gallery_id">갤러리 ID</string>
+    <string name="conflict_published">발행일</string>
+    <string name="conflict_enabled">켜짐</string>
+    <string name="conflict_disabled">꺼짐</string>
+    <string name="conflict_auto">자동</string>
 </resources>

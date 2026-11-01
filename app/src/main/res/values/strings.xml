@@ -621,4 +621,15 @@
     <string name="settings_personal_group">Personal settings</string>
     <string name="settings_reader_group">Reader and subscription notifications</string>
     <string name="settings_paths_group">Paths</string>
+    <string name="conflict_title">Resolve metadata conflict</string>
+    <string name="conflict_explanation">Only differences are shown. Choose which complete version to keep.</string>
+    <string name="conflict_phone">Phone</string>
+    <string name="conflict_pc">PC</string>
+    <string name="conflict_use_phone">Use phone edit</string>
+    <string name="conflict_cover">Cover</string>
+    <string name="conflict_gallery_id">Gallery ID</string>
+    <string name="conflict_published">Published date</string>
+    <string name="conflict_enabled">Enabled</string>
+    <string name="conflict_disabled">Disabled</string>
+    <string name="conflict_auto">Automatic</string>
 </resources>

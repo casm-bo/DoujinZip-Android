@@ -7,6 +7,29 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PresentationStoreTest {
+    @Test fun conflictChoiceCannotOverwriteAnEditMadeAfterThePopupOpened() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val name = "conflict-choice-${System.nanoTime()}.db"
+        try { LibraryIdentityStore(context, name).use { identity ->
+            val store=PresentationStore(identity)
+            val phone=GalleryPresentation("hitomi:42", "Phone", LibraryMetadata())
+            val pc=phone.copy(title="PC", version=2)
+            store.saveLocal(phone)
+            store.conflict(phone.key, pc)
+            val shown=store.get(phone.key)!!
+            store.saveLocal(phone.copy(title="New phone edit"))
+            store.resolveConflict(shown, false)
+            assertEquals("New phone edit", store.get(phone.key)!!.value.title)
+            store.resolveConflict(store.get(phone.key)!!, true)
+            assertNull(store.get(phone.key)!!.conflict)
+            assertTrue(store.get(phone.key)!!.dirty)
+            assertEquals(2L, store.get(phone.key)!!.value.version)
+            store.conflict(phone.key, pc.copy(version=3))
+            store.resolveConflict(store.get(phone.key)!!, false)
+            assertEquals(pc.copy(version=3), store.get(phone.key)!!.value)
+            assertFalse(store.get(phone.key)!!.dirty)
+        } } finally { context.deleteDatabase(name) }
+    }
     @Test fun identicalContentClearsOldAndNewConflictsWithoutLosingDifferentEdits() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val name = "same-content-${System.nanoTime()}.db"

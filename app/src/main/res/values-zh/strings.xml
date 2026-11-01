@@ -621,4 +621,15 @@
     <string name="settings_personal_group">个人设置</string>
     <string name="settings_reader_group">阅读器与订阅通知设置</string>
     <string name="settings_paths_group">路径</string>
+    <string name="conflict_title">解决元数据冲突</string>
+    <string name="conflict_explanation">仅显示不同项。请选择要保留的完整内容。</string>
+    <string name="conflict_phone">手机</string>
+    <string name="conflict_pc">PC</string>
+    <string name="conflict_use_phone">使用手机修改</string>
+    <string name="conflict_cover">封面</string>
+    <string name="conflict_gallery_id">画廊 ID</string>
+    <string name="conflict_published">发布日期</string>
+    <string name="conflict_enabled">启用</string>
+    <string name="conflict_disabled">禁用</string>
+    <string name="conflict_auto">自动</string>
 </resources>

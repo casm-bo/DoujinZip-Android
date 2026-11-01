@@ -5,6 +5,7 @@ import com.doujinzip.android.model.presentation
 import com.doujinzip.android.model.presentationKey
 import com.doujinzip.android.model.seriesPresentationKey
 import com.doujinzip.android.model.currentOrPreviousPage
+import com.doujinzip.android.model.hasSameContent
 
 import android.content.Intent
 import android.net.Uri
@@ -114,6 +115,21 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
         return
     }
     val strings = androidx.compose.ui.platform.LocalResources.current
+    var deferredConflicts by remember(viewModel.uiState.selectedProfileId) {
+        mutableStateOf(emptySet<com.doujinzip.android.data.PresentationRecord>())
+    }
+    LaunchedEffect(viewModel.uiState.isLibrarySyncing) {
+        if (viewModel.uiState.isLibrarySyncing) deferredConflicts = emptySet()
+    }
+    if (!viewModel.uiState.isLibrarySyncing) {
+        viewModel.uiState.presentations.values.firstOrNull {
+            it.conflict != null && !it.value.hasSameContent(it.conflict) && it !in deferredConflicts
+        }?.let { record ->
+            PresentationConflictDialog(record,
+                onChoose = { usePhone -> viewModel.resolvePresentationConflict(record, usePhone) },
+                onLater = { deferredConflicts = deferredConflicts + record })
+        }
+    }
     val navController = rememberNavController()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }

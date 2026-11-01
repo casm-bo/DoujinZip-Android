@@ -91,6 +91,12 @@ class PresentationStore(private val identity: LibraryIdentityStore, private val 
     }
     fun acceptRemote(key: String) = transaction { get(key)?.conflict?.let { put(PresentationRecord(it)) } }
 
+    fun resolveConflict(expected: PresentationRecord, usePhone: Boolean) = transaction {
+        val current = get(expected.value.key) ?: return@transaction
+        if (current != expected || current.conflict == null) return@transaction
+        if (usePhone) saveLocal(current.value, resolveConflict = true) else put(PresentationRecord(current.conflict))
+    }
+
     fun cursor(profileId: String): Long = identity.readableDatabase.rawQuery("SELECT revision FROM presentation_sync_cursor WHERE profile_id = ?", arrayOf(profileId))
         .use { if (it.moveToFirst()) it.getLong(0) else 0L }
     fun saveCursor(profileId: String, revision: Long) {

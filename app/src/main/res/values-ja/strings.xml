@@ -621,4 +621,15 @@
     <string name="settings_personal_group">個人設定</string>
     <string name="settings_reader_group">リーダー・購読通知設定</string>
     <string name="settings_paths_group">保存先</string>
+    <string name="conflict_title">メタデータの競合を解決</string>
+    <string name="conflict_explanation">異なる項目のみ表示します。残す内容を選んでください。</string>
+    <string name="conflict_phone">スマートフォン</string>
+    <string name="conflict_pc">PC</string>
+    <string name="conflict_use_phone">スマートフォンの編集を使用</string>
+    <string name="conflict_cover">表紙</string>
+    <string name="conflict_gallery_id">ギャラリーID</string>
+    <string name="conflict_published">公開日</string>
+    <string name="conflict_enabled">有効</string>
+    <string name="conflict_disabled">無効</string>
+    <string name="conflict_auto">自動</string>
 </resources>
