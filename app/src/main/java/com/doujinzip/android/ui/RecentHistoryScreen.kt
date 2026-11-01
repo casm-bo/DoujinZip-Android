@@ -51,6 +51,7 @@ fun RecentHistoryScreen(
     onRefresh: () -> Unit = {},
 ) {
     var refreshing by remember { mutableStateOf(false) }
+    var reloadGeneration by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     val strings = androidx.compose.ui.platform.LocalResources.current
     val context = LocalContext.current
@@ -100,14 +101,14 @@ fun RecentHistoryScreen(
         PullToRefreshBox(isRefreshing = refreshing, onRefresh = {
             if (!refreshing) scope.launch {
                 refreshing = true
-                try { onRefresh(); delay(250) } finally { refreshing = false }
+                try { onRefresh(); reloadGeneration++; delay(250) } finally { refreshing = false }
             }
         }, modifier = Modifier.weight(1f)) {
             if (entries.isEmpty()) Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
                 Text(if (state.recentHistory.isEmpty()) strings[R.string.ui_galleries_you_open_will_appear_here] else strings[R.string.ui_no_matching_history])
             } else LazyVerticalGrid(columns = GridCells.Fixed(if (grid) 2 else 1), modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(entries, key = { it.key }) { entry ->
-                    HistoryCard(entry, state, grid, onLoadMetadata, onOpen = { onOpen(entry, it) }, onRemove = { onRemove(entry.key) }, book = bookIndex.find(entry))
+                    HistoryCard(entry, state, grid, onLoadMetadata, onOpen = { onOpen(entry, it) }, onRemove = { onRemove(entry.key) }, book = bookIndex.find(entry), reloadGeneration = reloadGeneration)
                 }
             }
     }
@@ -126,11 +127,11 @@ internal fun historyTags(entry: RecentHistoryEntry, state: MainUiState, book: Li
 
 @Composable
 internal fun HistoryCard(entry: RecentHistoryEntry, state: MainUiState, grid: Boolean, onLoadMetadata: suspend (Long) -> Unit, onOpen: (Boolean) -> Unit, onRemove: () -> Unit,
-    book: LibraryBook? = entry.findBook(state.libraryBooks)) {
+    book: LibraryBook? = entry.findBook(state.libraryBooks), reloadGeneration: Int = 0) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     val context = LocalContext.current
     val tags = remember(book, state.galleryCache[entry.galleryId]) { historyTags(entry, state, book) }
-    LaunchedEffect(entry.key) {
+    LaunchedEffect(entry.key, reloadGeneration) {
         if (book == null && entry.galleryId != null && entry.galleryId !in state.galleryCache) {
             kotlinx.coroutines.delay(200)
             onLoadMetadata(entry.galleryId)
@@ -150,7 +151,9 @@ internal fun HistoryCard(entry: RecentHistoryEntry, state: MainUiState, grid: Bo
         grid = grid, onClick = { onOpen(false) },
         webtoon = book?.webtoon == true || state.galleryCache[entry.galleryId]?.webtoon == true,
         border = galleryCardBorder(favorite = book?.id in state.libraryFavoriteIds)) {
-        AsyncImage(model = image, contentDescription = strings[R.string.ui_cover, entry.title], modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        key(reloadGeneration) {
+            AsyncImage(model = image, contentDescription = strings[R.string.ui_cover, entry.title], modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        }
         Box(Modifier.align(Alignment.TopEnd)) {
             FilledIconButton(onClick = { options = true }) { Text("⋯") }
             DropdownMenu(expanded = options, onDismissRequest = { options = false }) {
