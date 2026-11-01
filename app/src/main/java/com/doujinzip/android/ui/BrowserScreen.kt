@@ -303,7 +303,6 @@ fun BrowserScreen(
                         DropdownMenuItem(text = { Text(strings[R.string.ui_go_to_page]) }, leadingIcon = { ActionIcon(ActionSymbol.PAGE) }, enabled = resultIds.isNotEmpty(), onClick = { menu = null; pageDialog = true })
                         DropdownMenuItem(text = { Text(strings[R.string.ui_view]) }, leadingIcon = { ActionIcon(ActionSymbol.GRID) }, onClick = { menu = "view" })
                         HorizontalDivider()
-                        DropdownMenuItem(text={Text(strings[R.string.sub_title])},leadingIcon={ActionIcon(ActionSymbol.LIST)},onClick={menu=null;onOpenSubscriptions()})
                         DropdownMenuItem(text = { Text(strings[R.string.ui_refresh]) }, leadingIcon = { ActionIcon(ActionSymbol.REFRESH) }, onClick = { menu = null; onRefresh() })
                         DropdownMenuItem(text = { Text(strings[R.string.ui_clear_search]) }, leadingIcon = { ActionIcon(ActionSymbol.CLEAR) }, onClick = { onQueryChange(""); menu = null; editing = true })
                     }
