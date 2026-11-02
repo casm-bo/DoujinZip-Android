@@ -163,7 +163,6 @@ internal fun SubscriptionScreen(state: MainUiState, onClose: () -> Unit, onTab: 
         dismissButton={TextButton({deleting=null}) { Text(strings[R.string.ui_cancel]) }}) }
     if(syncOptions) AlertDialog(onDismissRequest={syncOptions=false},title={Text(strings[R.string.sub_sync_options])},text={
         Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            SubscriptionSyncSettings(state.subscriptionOptions,onOptions)
             state.subscriptionSyncError?.let { Text(it,style=MaterialTheme.typography.bodySmall) }
             TextButton(onSyncNow,enabled=!state.subscriptionsBusy && state.selectedProfileId!=null,modifier=Modifier.testTag("subscription-sync-now")) { Text(strings[R.string.sub_sync_now]) }
         }
@@ -231,8 +230,6 @@ internal fun SubscriptionSettings(options:SubscriptionOptions,onChange:(Subscrip
         Row(verticalAlignment=Alignment.CenterVertically) { Text(strings[R.string.sub_hide_locked],Modifier.weight(1f)); Switch(options.hideWhenLocked,{onChange(options.copy(hideWhenLocked=it))},modifier=Modifier.testTag("subscription-hide-locked")) }
         Text(strings[if(options.hideWhenLocked) R.string.sub_hide_hint else R.string.sub_expose_hint],style=MaterialTheme.typography.bodySmall)
         OutlinedButton(onManage) { Text(strings[R.string.sub_title]) }
-        HorizontalDivider()
-        SubscriptionSyncSettings(options,onChange)
     }
 }
 

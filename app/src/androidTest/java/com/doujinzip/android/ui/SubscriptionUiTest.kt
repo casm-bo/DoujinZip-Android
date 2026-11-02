@@ -38,6 +38,7 @@ class SubscriptionUiTest {
     @Test fun privacyStartsEnabledAndCanBeDisabledAndIntervalCanChange() {
         var options=SubscriptionOptions()
         compose.setContent { var state by remember { mutableStateOf(options) }; MaterialTheme { SubscriptionSettings(state,{state=it;options=it},{}) } }
+        compose.onNodeWithTag("subscription-auto-sync").assertDoesNotExist()
         compose.onNodeWithTag("subscription-hide-locked").assertIsOn().performClick().assertIsOff()
         compose.runOnIdle { assertFalse(options.hideWhenLocked) }
         val context=InstrumentationRegistry.getInstrumentation().targetContext
@@ -83,10 +84,8 @@ class SubscriptionUiTest {
         compose.onNodeWithText(error).assertDoesNotExist()
         compose.onNodeWithText(text(R.string.sub_sync_options)).performClick()
         compose.onNodeWithText(error).assertExists()
-        compose.onNodeWithTag("subscription-sync-interval-60").performScrollTo().performClick()
-        compose.runOnIdle { assertEquals(60,options.syncIntervalMinutes) }
-        compose.onNodeWithTag("subscription-auto-sync").performScrollTo().performClick().assertIsOff()
-        compose.runOnIdle { assertFalse(options.syncEnabled) }
+        compose.onNodeWithTag("subscription-sync-interval-60").assertDoesNotExist()
+        compose.onNodeWithTag("subscription-auto-sync").assertDoesNotExist()
         compose.onNodeWithTag("subscription-sync-now").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(1,synced) }
     }
