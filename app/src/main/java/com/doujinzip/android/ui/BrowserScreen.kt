@@ -324,7 +324,8 @@ fun BrowserScreen(
             }
         })
         if (!searchExpansion.expanded) {
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedButton(onClick = { togglePanel("languages") }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 colors = activeFilterButtonColors(state.preferredLanguages.isNotEmpty() || editing && expandedPanel == "languages")) {
                 ActionIcon(ActionSymbol.LANGUAGE); Spacer(Modifier.width(4.dp))
@@ -337,9 +338,10 @@ fun BrowserScreen(
                 colors = activeFilterButtonColors(state.searchTagFilters.isNotEmpty() || state.customBlockedTags.isNotEmpty() || editing && expandedPanel == "tag-filters")) {
                 ActionIcon(ActionSymbol.FILTER); Spacer(Modifier.width(4.dp)); Text(strings[R.string.search_tag_filters])
             }
-            IconButton(onClick = { showFeed = true }, modifier = Modifier.semantics { contentDescription = strings[R.string.feed_title] }) {
-                ActionIcon(ActionSymbol.NEWSPAPER)
+            OutlinedButton(onClick = { showFeed = true }) {
+                ActionIcon(ActionSymbol.NEWSPAPER); Spacer(Modifier.width(4.dp)); Text(strings[R.string.feed_title])
             }
+        }
             Spacer(Modifier.width(4.dp))
             SearchSortMenu(state.searchQuery, enabled = !state.isLoadingPage) { oldest ->
                 val query = state.searchQuery.replace(Regex("(?i)(^|\\s)sort:(oldest|newest)(?=\\s|$)"), " ").trim()
