@@ -73,20 +73,13 @@ class SubscriptionUiTest {
         compose.onNodeWithText(text(R.string.ui_save)).performClick()
         compose.runOnIdle { assertEquals("tag:example",saved!!.query);assertEquals(setOf("english"),saved!!.languages) }
     }
-    @Test fun syncErrorsStayInsideOptionsAndAutomaticSyncCanBeConfigured() {
+    @Test fun syncStatusIsVisibleWithoutDedicatedSyncOptions() {
         val error="Synthetic offline sync status"
-        var synced=0
-        var options=SubscriptionOptions()
-        compose.setContent { var current by remember { mutableStateOf(options) }; MaterialTheme {
-            SubscriptionScreen(MainUiState(selectedProfileId="synthetic-desktop",subscriptionSyncError=error,subscriptionOptions=current),
-                {}, {}, {}, {}, {}, {}, {_,_->}, {}, onOptions={current=it;options=it},onSyncNow={synced++})
+        compose.setContent { MaterialTheme {
+            SubscriptionScreen(MainUiState(subscriptionSyncError=error),{}, {}, {}, {}, {}, {}, {_,_->}, {})
         } }
-        compose.onNodeWithText(error).assertDoesNotExist()
-        compose.onNodeWithText(text(R.string.sub_sync_options)).performClick()
         compose.onNodeWithText(error).assertExists()
-        compose.onNodeWithTag("subscription-sync-interval-60").assertDoesNotExist()
+        compose.onNodeWithText(text(R.string.sub_sync_options)).assertDoesNotExist()
         compose.onNodeWithTag("subscription-auto-sync").assertDoesNotExist()
-        compose.onNodeWithTag("subscription-sync-now").performScrollTo().performClick()
-        compose.runOnIdle { assertEquals(1,synced) }
     }
 }

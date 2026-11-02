@@ -468,7 +468,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 withContext(Dispatchers.IO) { subscriptionStore.save(scope,value);com.doujinzip.android.data.SubscriptionWorker.schedule(getApplication()) }
                 if(scope == uiState.selectedProfileId.orEmpty()) uiState=uiState.copy(subscriptionEditor=null,favoriteName="",subscriptionError=null)
-                refreshSubscriptions()
+                reloadSubscriptions(); scheduleLibrarySync(force=true); refreshSubscriptions(syncNow=false)
             } catch(error: Exception) {
                 if(error is CancellationException) throw error
                 uiState=uiState.copy(subscriptionError=error.message,message=error.message,isError=true)
@@ -477,9 +477,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun resolveSubscription(id:String,keepPhone:Boolean) {
         val scope=uiState.selectedProfileId.orEmpty()
-        viewModelScope.launch { withContext(Dispatchers.IO) { subscriptionStore.resolve(scope,id,keepPhone) }; refreshSubscriptions() }
+        viewModelScope.launch { withContext(Dispatchers.IO) { subscriptionStore.resolve(scope,id,keepPhone) }; reloadSubscriptions(); scheduleLibrarySync(force=true); refreshSubscriptions(syncNow=false) }
     }
-    fun refreshSubscriptions(force:Boolean=false,syncNow:Boolean=false) {
+    fun refreshSubscriptions(force:Boolean=false,syncNow:Boolean=true) {
         if(subscriptionJob?.isActive == true) return
         val profile=selectedProfile()
         val scope=profile?.id.orEmpty()
@@ -495,6 +495,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if(scope == uiState.selectedProfileId.orEmpty()) uiState=uiState.copy(subscriptionsBusy=false,subscriptionError=checkError,subscriptionSyncError=syncError)
                 reloadSubscriptions()
             }
+        }
+    }
+    private suspend fun syncSubscriptions(profile: DesktopProfile) {
+        val error=com.doujinzip.android.data.SubscriptionRefresh.run(getApplication(),profile,forceSync=true,check=false)
+        if(selectedProfile()?.id == profile.id) {
+            uiState=uiState.copy(subscriptionSyncError=error)
+            reloadSubscriptions()
         }
     }
     fun setSubscriptionOptions(options: com.doujinzip.android.security.SubscriptionOptions) {
@@ -522,7 +529,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 gallery?.let { uiState=uiState.copy(galleryCache=cacheGalleries(uiState.galleryCache,listOf(it))) }
                 selectGallery(id)
             }
-            refreshSubscriptions()
+            reloadSubscriptions(); scheduleLibrarySync(force=true)
         }
     }
 
@@ -1647,7 +1654,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
             val result = libraryScanner.scan(scannedLocations)
             if (!current()) return@launch
-            if (profile != null) syncPresentations(profile)
+            if (profile != null) { syncSubscriptions(profile); syncPresentations(profile) }
             val cloudResult = profile?.let { runCatching { client.getLibraryBooks(it) } }
             if (!current()) return@launch
             if (cloudResult?.isSuccess == true) successfulDesktopRefreshes++
@@ -3448,9 +3455,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun scheduleLibrarySync(delayMs: Long = LIBRARY_SYNC_DEBOUNCE_MS) {
+    private fun scheduleLibrarySync(delayMs: Long = LIBRARY_SYNC_DEBOUNCE_MS, force: Boolean = false) {
         uiState = uiState.copy(librarySyncPendingCount = pendingLibrarySyncCount())
-        if (pendingLibrarySyncCount() == 0) return
+        if (!force && pendingLibrarySyncCount() == 0) return
         librarySyncDebounceJob?.cancel()
         librarySyncDebounceJob = viewModelScope.launch {
             delay(delayMs)
@@ -3463,6 +3470,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         booksOverride: List<LibraryBook>? = null,
     ) = librarySyncFlushMutex.withLock {
         val profile = profileOverride ?: selectedProfile() ?: return@withLock
+        syncSubscriptions(profile)
         syncPresentations(profile)
         if (uiState.isLibraryScanning && booksOverride == null) {
             scheduleLibrarySync(LIBRARY_SYNC_SCAN_RETRY_MS)
@@ -3892,7 +3900,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 flushPendingLibrarySync(profile, uiState.libraryBooks)
                 val remainingIds = uiState.libraryBooks.asSequence().mapTo(linkedSetOf(), LibraryBook::id) - queuedIds
                 val failures = uploadMissingLocalBooks(profile, uiState.libraryBooks, remainingIds)
-                val errors = downloadErrors + failures
+                val errors = downloadErrors + failures + listOfNotNull(uiState.subscriptionSyncError)
                 if (errors.isNotEmpty()) uiState = uiState.copy(librarySyncError = errors.joinToString("\n"),
                     message = strings[R.string.msg_some_items_could_not_sync_check_the_pending_list], isError = true)
                 if (errors.isEmpty() && uiState.librarySyncError == null && uiState.presentationSyncError == null && pendingLibrarySyncCount() == 0) {

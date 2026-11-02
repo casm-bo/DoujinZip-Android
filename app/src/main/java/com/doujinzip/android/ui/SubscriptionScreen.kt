@@ -42,7 +42,7 @@ internal fun SubscriptionScreen(state: MainUiState, onClose: () -> Unit, onTab: 
     onRefresh: () -> Unit, onRead: (Long?) -> Unit, onEdit: (SearchSubscription?) -> Unit,
     onSave: (SearchSubscription) -> Unit, onResolve: (String,Boolean) -> Unit, onSearch: (SearchSubscription) -> Unit,
     onQueryChange: (String) -> Unit = {}, onLoadLanguages: () -> Unit = {},
-    onOptions: (SubscriptionOptions) -> Unit = {}, onSyncNow: () -> Unit = {}) {
+    ) {
     val strings=androidx.compose.ui.platform.LocalResources.current
     val context=LocalContext.current
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -65,18 +65,17 @@ internal fun SubscriptionScreen(state: MainUiState, onClose: () -> Unit, onTab: 
         sortSavedSubscriptions(filtered, savedSort)
     }
     var deleting by remember { mutableStateOf<SearchSubscription?>(null) }
-    var syncOptions by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal=16.dp)) {
         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
             IconButton(onClose) { ActionIcon(ActionSymbol.BACK) }
             Text(strings[R.string.sub_title],Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
-            TextButton({syncOptions=true}) { Text(strings[R.string.sub_sync_options]) }
         }
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             FilterChip(state.subscriptionTab==0,{onTab(0)},label={Text(strings[R.string.sub_notifications]+" (${state.subscriptionNotices.count { !it.read }})")})
             FilterChip(state.subscriptionTab==1,{onTab(1)},label={Text(strings[R.string.sub_title])})
         }
         if(state.subscriptionsBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
+        state.subscriptionSyncError?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
         state.subscriptionError?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
         if(state.subscriptionTab==0) {
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
@@ -161,12 +160,7 @@ internal fun SubscriptionScreen(state: MainUiState, onClose: () -> Unit, onTab: 
     deleting?.let { value -> AlertDialog(onDismissRequest={deleting=null},title={Text(strings[R.string.ui_delete])},text={Text(value.name)},
         confirmButton={TextButton({onSave(value.copy(deleted=true));deleting=null}) { Text(strings[R.string.ui_delete]) }},
         dismissButton={TextButton({deleting=null}) { Text(strings[R.string.ui_cancel]) }}) }
-    if(syncOptions) AlertDialog(onDismissRequest={syncOptions=false},title={Text(strings[R.string.sub_sync_options])},text={
-        Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            state.subscriptionSyncError?.let { Text(it,style=MaterialTheme.typography.bodySmall) }
-            TextButton(onSyncNow,enabled=!state.subscriptionsBusy && state.selectedProfileId!=null,modifier=Modifier.testTag("subscription-sync-now")) { Text(strings[R.string.sub_sync_now]) }
-        }
-    },confirmButton={TextButton({syncOptions=false}) { Text(strings[R.string.ui_confirm]) }})
+
 }
 
 @Composable
@@ -195,7 +189,8 @@ private fun SubscriptionEditor(value:SearchSubscription,state:MainUiState,onDism
             Row(verticalAlignment=Alignment.CenterVertically) { Text(strings[R.string.sub_monitor],Modifier.weight(1f)); Switch(enabled,{enabled=it},modifier=Modifier.testTag("subscription-editor-monitor")) }
             Text(strings[R.string.sub_hint],style=MaterialTheme.typography.bodySmall)
             error?.let { Text(it,color=MaterialTheme.colorScheme.error) }
-            state.subscriptionError?.let { Text(it,color=MaterialTheme.colorScheme.error) }
+            state.subscriptionSyncError?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
+        state.subscriptionError?.let { Text(it,color=MaterialTheme.colorScheme.error) }
         }
     },confirmButton={TextButton({
         val edited=value.copy(name=name.trim().ifBlank { query.trim() },query=com.doujinzip.android.model.normalizeSearchSeparators(query),languages=languages.toSet(),enabled=enabled)
@@ -230,24 +225,6 @@ internal fun SubscriptionSettings(options:SubscriptionOptions,onChange:(Subscrip
         Row(verticalAlignment=Alignment.CenterVertically) { Text(strings[R.string.sub_hide_locked],Modifier.weight(1f)); Switch(options.hideWhenLocked,{onChange(options.copy(hideWhenLocked=it))},modifier=Modifier.testTag("subscription-hide-locked")) }
         Text(strings[if(options.hideWhenLocked) R.string.sub_hide_hint else R.string.sub_expose_hint],style=MaterialTheme.typography.bodySmall)
         OutlinedButton(onManage) { Text(strings[R.string.sub_title]) }
-    }
-}
-
-@Composable
-internal fun SubscriptionSyncSettings(options:SubscriptionOptions,onChange:(SubscriptionOptions)->Unit) {
-    val strings=androidx.compose.ui.platform.LocalResources.current
-    Row(verticalAlignment=Alignment.CenterVertically) {
-        Text(strings[R.string.sub_auto_sync],Modifier.weight(1f))
-        Switch(options.syncEnabled,{onChange(options.copy(syncEnabled=it))},modifier=Modifier.testTag("subscription-auto-sync"))
-    }
-    Text(strings[R.string.sub_sync_hint],style=MaterialTheme.typography.bodySmall)
-    if(options.syncEnabled) {
-        Text(strings[R.string.sub_sync_interval],style=MaterialTheme.typography.titleSmall)
-        @OptIn(ExperimentalLayoutApi::class)
-        FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            SubscriptionPreferences.intervals.forEach { minutes -> FilterChip(options.syncIntervalMinutes==minutes,
-                {onChange(options.copy(syncIntervalMinutes=minutes))},label={Text(subscriptionIntervalLabel(strings,minutes))},modifier=Modifier.testTag("subscription-sync-interval-$minutes")) }
-        }
     }
 }
 

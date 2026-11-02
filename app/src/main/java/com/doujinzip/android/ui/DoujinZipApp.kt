@@ -174,7 +174,7 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
                     viewModel.searchFavorite(com.doujinzip.android.model.SearchFavorite(value.id,value.name,value.query,value.languages))
                     navController.navigate("main") { popUpTo("main");launchSingleTop=true }
                 }, onQueryChange=viewModel::setSubscriptionQuery,onLoadLanguages=viewModel::loadAvailableLanguages,
-                onOptions=viewModel::setSubscriptionOptions,onSyncNow={viewModel.refreshSubscriptions(syncNow=true)})
+                )
         }
     }
     val newTabNotice = viewModel.uiState.newTabNotice

@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 
 class SubscriptionRetryTest {
-    @Test fun failuresAreThrottledAcrossRefreshesAndManualSyncBypassesTheWait() = runBlocking {
+    @Test fun checksDoNotSyncAndCommonSyncRetriesWithoutDedicatedSchedule() = runBlocking {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         check(context.packageName.endsWith(".uitest"))
         val preferences=SubscriptionPreferences(context);val previous=preferences.load()
@@ -37,27 +37,17 @@ class SubscriptionRetryTest {
         val profile=DesktopProfile(scope,"Synthetic desktop","http://127.0.0.1:${server.localPort}","synthetic-test-token")
         try {
             preferences.save(SubscriptionOptions())
-            assertNotNull(SubscriptionRefresh.run(context,profile))
-            repeat(3) { assertNotNull(SubscriptionRefresh.run(context,profile)) }
+            assertNull(SubscriptionRefresh.run(context,profile))
+            assertEquals(0,requests.get())
+            assertNotNull(SubscriptionRefresh.run(context,profile,forceSync=true,check=false))
             assertEquals(1,requests.get())
             unsupported.set(false)
-            assertNull(SubscriptionRefresh.run(context,profile,forceSync=true))
+            assertNull(SubscriptionRefresh.run(context,profile,forceSync=true,check=false))
             assertEquals(2,requests.get())
-            assertNull(SubscriptionRefresh.run(context,profile))
-            assertEquals(2,requests.get())
-            preferences.save(preferences.load().copy(syncEnabled=false,syncIntervalMinutes=60))
-            assertFalse(SubscriptionPreferences(context).load().syncEnabled)
-            assertEquals(60,SubscriptionPreferences(context).load().syncIntervalMinutes)
-            SubscriptionRefresh.run(context,profile)
-            assertEquals(2,requests.get())
-            assertNull(SubscriptionRefresh.run(context,profile,forceSync=true))
+            assertNull(SubscriptionRefresh.run(context,profile,forceSync=true,check=false))
             assertEquals(3,requests.get())
-            server.close();serving.join(5_000)
-            preferences.save(preferences.load().copy(syncEnabled=true))
-            assertNotNull(SubscriptionRefresh.run(context,profile,forceSync=true))
-            val attempt=store.state("sync-attempt/$scope")
-            assertNotNull(SubscriptionRefresh.run(context,profile))
-            assertEquals(attempt,store.state("sync-attempt/$scope"))
+            assertNull(SubscriptionRefresh.run(context,profile))
+            assertEquals(3,requests.get())
         } finally {
             server.close();serving.join(5_000);preferences.save(previous)
             for(key in listOf("sync-attempt/$scope","sync-error/$scope","cursor/$scope")) store.writableDatabase.delete("state","key=?",arrayOf(key))

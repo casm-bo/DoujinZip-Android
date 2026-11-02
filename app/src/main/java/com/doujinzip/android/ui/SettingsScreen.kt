@@ -186,7 +186,6 @@ fun SettingsScreen(
             onSelectProfile = onSelectProfile,
             onRemoveProfile = onRemoveProfile,
             onSyncNow = onSyncNow,
-            onSubscriptionOptionsChange = onSubscriptionOptionsChange,
         )
         SettingsSection.SUPPORT -> SupportSettingsScreen(
             state = state,
@@ -601,7 +600,6 @@ private fun ConnectionSettingsScreen(
     onSelectProfile: (String) -> Unit,
     onRemoveProfile: (String) -> Unit,
     onSyncNow: () -> Unit,
-    onSubscriptionOptionsChange: (com.doujinzip.android.security.SubscriptionOptions) -> Unit,
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     val enabled = !state.isBusy && !state.isLoadingPage && !state.isLibrarySyncing
@@ -706,6 +704,7 @@ private fun ConnectionSettingsScreen(
                 Text(strings[R.string.connection_last_sync, if (state.lastDesktopSyncAt == 0L) "—" else
                     java.text.DateFormat.getDateTimeInstance().format(java.util.Date(state.lastDesktopSyncAt))], style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(12.dp))
+                state.subscriptionSyncError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 state.librarySyncError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = onSyncNow, enabled = enabled) { Text(strings[R.string.sub_sync_now]) }
@@ -715,9 +714,6 @@ private fun ConnectionSettingsScreen(
         }
         if (state.profiles.isNotEmpty()) SectionCard(null) {
             Text(strings[R.string.connection_single_notice], style = MaterialTheme.typography.bodyMedium)
-        }
-        SectionCard(strings[R.string.sub_sync_options]) {
-            SubscriptionSyncSettings(state.subscriptionOptions,onSubscriptionOptionsChange)
         }
         if (state.isBusy) LoadingRow(strings[R.string.ui_connecting])
     }
