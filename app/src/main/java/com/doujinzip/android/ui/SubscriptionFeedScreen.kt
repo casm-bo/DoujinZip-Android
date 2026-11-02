@@ -22,6 +22,18 @@ internal fun SubscriptionFeedScreen(
     onLongClick: (Long) -> Unit, onFavorite: (String) -> Unit, onFacet: (String) -> Unit,
 ) {
     val strings=androidx.compose.ui.platform.LocalResources.current
+    val context=androidx.compose.ui.platform.LocalContext.current
+    val signature=state.selectedProfileId.orEmpty()+state.subscriptions.map { it.value }.filter { it.enabled && !it.deleted }.flatMap { it.queries }.distinct().sorted().toString()+state.searchTagFilters.sortedBy { it.name }+state.customBlockedTags.sorted()
+    val session=remember(signature) { java.security.MessageDigest.getInstance("SHA-256").digest(signature.toByteArray()).joinToString("") { "%02x".format(it) } }
+    val cache=remember { com.doujinzip.android.data.SearchResultCache(java.io.File(context.filesDir,"subscription-feed")) }
+    val preferences=remember { context.getSharedPreferences("subscription_feed",android.content.Context.MODE_PRIVATE) }
+    val listState=rememberLazyGridState()
+    var restored by remember(session) { mutableStateOf(false) }
+    LaunchedEffect(session,restored) {
+        if(restored) snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }.collect { (index,offset) ->
+            preferences.edit().putInt("$session-index",index).putInt("$session-offset",offset).apply()
+        }
+    }
     val scope=rememberCoroutineScope()
     var ids by remember { mutableStateOf(emptyList<Long>()) }
     var galleries by remember { mutableStateOf(emptyList<GallerySummary>()) }
@@ -29,9 +41,15 @@ internal fun SubscriptionFeedScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var revision by remember { mutableIntStateOf(0) }
     var indexReady by remember { mutableStateOf(false) }
+    var retryIndex by remember { mutableStateOf(false) }
     var pageJob by remember { mutableStateOf<Job?>(null) }
+    suspend fun persist() {
+        val index=com.doujinzip.android.data.SearchResultIndex(session,emptyList(),listOf(galleries.map { it.id },ids.drop(galleries.size)))
+        cache.writePage(index,1,galleries)
+        cache.writeIndex(index)
+    }
     suspend fun nextPage() {
-        busy=true; error=null
+        retryIndex=false; busy=true; error=null
         try {
             val page=ids.drop(galleries.size).take(25)
             for(id in page) {
@@ -41,12 +59,27 @@ internal fun SubscriptionFeedScreen(
             }
         } catch(cancelled: CancellationException) { throw cancelled }
         catch(failure: Exception) { error=failure.message ?: strings[R.string.feed_error] }
-        finally { busy=false }
+        finally { persist(); busy=false }
     }
     LaunchedEffect(state.selectedProfileId, state.subscriptions.map { it.value }, state.searchTagFilters, state.customBlockedTags, revision) {
         pageJob?.cancelAndJoin()
-        ids=emptyList(); galleries=emptyList(); indexReady=false; busy=true; error=null
-        try { ids=loadIds(); indexReady=true; nextPage() }
+        retryIndex=true; busy=true; error=null
+        if(!restored) {
+            val saved=cache.readIndex(session)
+            val page=saved?.let { cache.readPage(it,1) }
+            ids=if(page!=null) saved.ids else emptyList()
+            galleries=page.orEmpty(); indexReady=page!=null
+            if(galleries.isNotEmpty()) listState.scrollToItem(preferences.getInt("$session-index",0).coerceIn(0,galleries.lastIndex),preferences.getInt("$session-offset",0).coerceAtLeast(0))
+            restored=true
+        }
+        try {
+            val fresh=loadIds()
+            val previous=(state.galleryCache.values+galleries).associateBy { it.id }
+            val count=galleries.size.coerceAtLeast(25)
+            val refreshed=mutableListOf<GallerySummary>()
+            for(id in fresh.take(count)) refreshed+=previous[id] ?: loadGallery(id).also(onLoaded)
+            ids=fresh; galleries=refreshed; indexReady=true; persist()
+        }
         catch(cancelled: CancellationException) { throw cancelled }
         catch(failure: Exception) { error=failure.message ?: strings[R.string.feed_error] }
         finally { busy=false }
@@ -61,11 +94,11 @@ internal fun SubscriptionFeedScreen(
         if(indexReady) Text(strings[R.string.feed_count,ids.size],Modifier.padding(horizontal=16.dp))
         if(error!=null) {
             Text(error.orEmpty(),Modifier.padding(16.dp),color=MaterialTheme.colorScheme.error)
-            TextButton({if(indexReady) pageJob=scope.launch { nextPage() } else revision++},enabled=!busy) { Text(strings[R.string.ui_try_again]) }
+            TextButton({if(indexReady && !retryIndex) pageJob=scope.launch { nextPage() } else revision++},enabled=!busy) { Text(strings[R.string.ui_try_again]) }
         }
         if(busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         if(indexReady && ids.isEmpty() && !busy) Text(strings[R.string.feed_empty],Modifier.padding(16.dp))
-        LazyVerticalGrid(GridCells.Fixed(if(grid) columns else 1),modifier=Modifier.weight(1f),contentPadding=PaddingValues(16.dp),
+        LazyVerticalGrid(GridCells.Fixed(if(grid) columns else 1),state=listState,modifier=Modifier.weight(1f),contentPadding=PaddingValues(16.dp),
             verticalArrangement=Arrangement.spacedBy(12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
             items(galleries,key={it.id}) { item ->
                 val gallery=state.galleryCache[item.id] ?: item

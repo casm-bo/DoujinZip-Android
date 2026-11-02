@@ -271,7 +271,10 @@ fun BrowserScreen(
     val viewPreferences = remember(context) { LibraryPreferenceStore(context) }
     var gridView by rememberSaveable { mutableStateOf(viewPreferences.loadSearchGridView()) }
     var gridColumns by rememberSaveable { mutableIntStateOf(viewPreferences.loadSearchGridColumns()) }
-    var showFeed by rememberSaveable(state.selectedProfileId) { mutableStateOf(false) }
+    val feedPreferences=remember(context) { context.getSharedPreferences("subscription_feed", Context.MODE_PRIVATE) }
+    val feedOpenKey="open-${state.selectedProfileId.orEmpty()}"
+    var showFeed by rememberSaveable(state.selectedProfileId) { mutableStateOf(feedPreferences.getBoolean(feedOpenKey,false)) }
+    LaunchedEffect(showFeed,feedOpenKey) { feedPreferences.edit().putBoolean(feedOpenKey,showFeed).apply() }
     val feedClient = remember { com.doujinzip.android.network.HitomiClient() }
     if (showFeed) {
         CompositionLocalProvider(LocalWorkCardSize provides WorkCardSize.fromColumns(gridColumns)) {

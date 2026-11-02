@@ -1,6 +1,7 @@
 package com.doujinzip.android.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.*
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -17,7 +18,12 @@ import org.junit.Test
 class SubscriptionFeedScreenTest {
     @get:Rule val compose=createAndroidComposeRule<ComponentActivity>()
     private val strings get()=InstrumentationRegistry.getInstrumentation().targetContext.resources
-    @Before fun screenOn() { compose.activityRule.scenario.onActivity { it.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) } }
+    @Before fun screenOn() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        java.io.File(context.filesDir,"subscription-feed").deleteRecursively()
+        context.getSharedPreferences("subscription_feed",android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        compose.activityRule.scenario.onActivity { it.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+    }
     private fun gallery(id:Long)=GallerySummary(id,"Synthetic $id",artists=emptyList(),series=emptyList(),galleryType=null,thumbnailUrl=null,pageCount=1,language=null,tags=emptyList())
     @Test fun pagesAllResultsAndRetriesFailedItemsWithoutSkippingThem() {
         val loaded=mutableListOf<Long>()
@@ -38,6 +44,24 @@ class SubscriptionFeedScreenTest {
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Synthetic 1"))
         compose.onNodeWithText("Synthetic 1").performClick()
         compose.runOnIdle { assertEquals(1L,opened); assertEquals((1L..27L).toList().reversed(),loaded) }
+    }
+
+    @Test fun reopensCachedResultsOfflineWithoutRefetchingGalleryDetails() {
+        var visible by mutableStateOf(true)
+        var offline=false
+        var details=0
+        compose.setContent { DoujinZipTheme { if(visible) SubscriptionFeedScreen(MainUiState(),PaddingValues(0.dp),false,2,
+            loadIds={if(offline) error("Synthetic offline");listOf(42L)},loadGallery={details++;gallery(it)},
+            onLoaded={},onBack={},onOpen={},onLongClick={},onFavorite={},onFacet={}) } }
+        compose.waitUntil(5000) { details==1 }
+        compose.onNodeWithText("Synthetic 42").assertExists()
+        compose.waitUntil(5000) { compose.onAllNodes(hasProgressBarRangeInfo(androidx.compose.ui.semantics.ProgressBarRangeInfo.Indeterminate)).fetchSemanticsNodes().isEmpty() }
+        compose.runOnIdle { visible=false }
+        compose.waitForIdle()
+        compose.runOnIdle { offline=true;visible=true }
+        compose.waitUntil(5000) { compose.onAllNodesWithText("Synthetic offline").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Synthetic 42").assertExists()
+        compose.runOnIdle { assertEquals(1,details) }
     }
     @Test fun showsEmptyFeedAndRefreshesAfterAnIndexFailure() {
         var calls=0
