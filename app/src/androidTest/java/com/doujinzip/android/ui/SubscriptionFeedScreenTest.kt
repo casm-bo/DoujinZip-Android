@@ -111,6 +111,26 @@ class SubscriptionFeedScreenTest {
         compose.waitUntil(5000) { calls==3 };waitIdle()
         compose.onNodeWithText("Synthetic 50").assertExists()
     }
+    @Test fun unchangedProbeAvoidsFullReloadButManualRefreshBypassesIt() {
+        var visible by mutableStateOf(true)
+        var fullLoads=0
+        var probes=0
+        compose.setContent { DoujinZipTheme { if(visible) SubscriptionFeedScreen(MainUiState(),PaddingValues(0.dp),false,2,
+            loadIds={ _ -> fullLoads++;listOf(42L)},loadGallery={gallery(it)},probeIds={ _ ->probes++;"same"},
+            onLoaded={},onBack={},onOpen={},onLongClick={},onFavorite={},onFacet={}) } }
+        fun idle() { compose.waitUntil(5000) { compose.onAllNodes(hasProgressBarRangeInfo(androidx.compose.ui.semantics.ProgressBarRangeInfo.Indeterminate)).fetchSemanticsNodes().isEmpty() } }
+        compose.waitUntil(5000) { fullLoads==1 };idle()
+        compose.runOnIdle { visible=false };compose.waitForIdle()
+        compose.runOnIdle {
+            val prefs=InstrumentationRegistry.getInstrumentation().targetContext.getSharedPreferences("subscription_feed",android.content.Context.MODE_PRIVATE)
+            prefs.all.keys.filter { it.endsWith("-success") }.forEach { prefs.edit().putLong(it,1).commit() }
+            visible=true
+        }
+        compose.waitUntil(5000) { probes==2 };idle()
+        compose.runOnIdle { assertEquals(1,fullLoads) }
+        compose.onNodeWithText(strings.getString(R.string.ui_refresh)).performClick()
+        compose.waitUntil(5000) { fullLoads==2 };idle()
+    }
     @Test fun showsEmptyFeedAndRefreshesAfterAnIndexFailure() {
         var calls=0
         compose.setContent { DoujinZipTheme { SubscriptionFeedScreen(MainUiState(),PaddingValues(0.dp),false,2,
@@ -119,6 +139,7 @@ class SubscriptionFeedScreenTest {
         compose.waitUntil(5_000) { calls==1 }
         compose.onNodeWithText(strings.getString(R.string.ui_try_again)).performClick()
         compose.waitUntil(5_000) { calls==2 }
+        compose.waitUntil(5000) { compose.onAllNodesWithText(strings.getString(R.string.feed_empty)).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText(strings.getString(R.string.feed_empty)).assertExists()
     }
 }

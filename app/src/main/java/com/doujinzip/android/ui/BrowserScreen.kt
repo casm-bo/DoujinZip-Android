@@ -281,6 +281,7 @@ fun BrowserScreen(
             SubscriptionFeedScreen(state, contentPadding, gridView, gridColumns,
                 loadIds = { selected -> com.doujinzip.android.data.subscriptionFeedIds(selected, state.searchTagFilters, state.customBlockedTags, feedClient::subscriptionIds) },
                 loadGallery = feedClient::getGallery, onLoaded = onFeedGalleryLoaded,
+                probeIds = { selected -> feedClient.subscriptionFingerprint(selected.flatMap { it.queries }.map { com.doujinzip.android.model.applySearchTagFilters(it,state.searchTagFilters,state.customBlockedTags) }) },
                 onBack = { showFeed = false }, onOpen = onGalleryClick, onLongClick = onGalleryLongClick,
                 onFavorite = onToggleLibraryFavorite, onFacet = { showFeed = false; onSearchFacet(it) })
         }

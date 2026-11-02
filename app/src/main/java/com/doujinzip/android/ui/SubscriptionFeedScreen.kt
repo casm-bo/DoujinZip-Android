@@ -20,6 +20,7 @@ internal fun SubscriptionFeedScreen(
     loadIds: suspend (List<com.doujinzip.android.model.SearchSubscription>) -> List<Long>, loadGallery: suspend (Long) -> GallerySummary,
     onLoaded: (GallerySummary) -> Unit, onBack: () -> Unit, onOpen: (Long) -> Unit,
     onLongClick: (Long) -> Unit, onFavorite: (String) -> Unit, onFacet: (String) -> Unit,
+    probeIds: (suspend (List<com.doujinzip.android.model.SearchSubscription>) -> String)? = null,
 ) {
     val strings=androidx.compose.ui.platform.LocalResources.current
     val context=androidx.compose.ui.platform.LocalContext.current
@@ -84,13 +85,21 @@ internal fun SubscriptionFeedScreen(
             return@LaunchedEffect
         }
         try {
+            val now=System.currentTimeMillis()
+            val probe=try { probeIds?.invoke(selected) }
+                catch(cancelled: CancellationException) { throw cancelled }
+                catch(_: Exception) { null }
+            if(indexReady && !com.doujinzip.android.data.subscriptionFeedFullRefreshDue(now,preferences.getLong("$session-full",0),preferences.getString("$session-probe",null),probe,revision>0)) {
+                preferences.edit().putLong("$session-success",now).apply()
+                return@LaunchedEffect
+            }
             val loadedIds=loadIds(selected)
             val fresh=if(oldest) loadedIds.sorted() else loadedIds.sortedDescending()
             val existing=ids.toHashSet()
             if(indexReady && revision==0 && fresh.any { it !in existing }) {
                 if(cache.writeIndex(com.doujinzip.android.data.SearchResultIndex("$session-pending",emptyList(),listOf(fresh)))) {
                     pendingIds=fresh
-                    preferences.edit().putLong("$session-success",System.currentTimeMillis()).apply()
+                    preferences.edit().putLong("$session-success",System.currentTimeMillis()).putLong("$session-full",System.currentTimeMillis()).putString("$session-probe",probe).apply()
                 }
                 return@LaunchedEffect
             }
@@ -106,7 +115,7 @@ internal fun SubscriptionFeedScreen(
             if(persist()) {
                 pendingIds=emptyList()
                 cache.writeIndex(com.doujinzip.android.data.SearchResultIndex("$session-pending",emptyList()))
-                preferences.edit().putLong("$session-success",System.currentTimeMillis()).apply()
+                preferences.edit().putLong("$session-success",System.currentTimeMillis()).putLong("$session-full",System.currentTimeMillis()).putString("$session-probe",probe).apply()
             }
         }
         catch(cancelled: CancellationException) { throw cancelled }

@@ -15,4 +15,7 @@ internal suspend fun subscriptionFeedIds(
 }
 
 internal fun subscriptionFeedRefreshDue(now: Long, lastSuccess: Long, hasCache: Boolean, force: Boolean): Boolean =
-    force || !hasCache || lastSuccess <= 0 || now < lastSuccess || now-lastSuccess >= 5*60_000L
+    force || !hasCache || lastSuccess <= 0 || now < lastSuccess || now-lastSuccess >= 30_000L
+
+internal fun subscriptionFeedFullRefreshDue(now: Long, lastFull: Long, cachedProbe: String?, probe: String?, force: Boolean): Boolean =
+    force || probe == null || cachedProbe != probe || lastFull <= 0 || now < lastFull || now-lastFull >= 24*60*60_000L

@@ -19,6 +19,20 @@ import org.json.JSONObject
 class HitomiClient {
     private val searches = linkedMapOf<String, Pair<Long, List<Long>>>()
 
+    // shortcut: sampling can miss older membership edits; rescan the full feed daily.
+    suspend fun subscriptionFingerprint(queries: List<String>): String = withContext(Dispatchers.IO) {
+        queries.forEach { com.doujinzip.android.model.validateSubscriptionQuery(it) }
+        val terms=queries.flatMap { it.split(Regex("\\s+")) }.filter(String::isNotBlank).map { it.removePrefix("-") }.distinct().sorted()
+        val digest=MessageDigest.getInstance("SHA-256")
+        for(term in terms) {
+            var total=0
+            val sample=readResource(hitomiNozomiPath(term),0L..127L,missingIsEmpty=true,onRangeCount={total=it})
+            digest.update((term+":"+total+":").toByteArray())
+            digest.update(sample)
+        }
+        digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
     suspend fun subscriptionIds(query: String): List<Long> = withContext(Dispatchers.IO) {
         com.doujinzip.android.model.validateSubscriptionQuery(query)
         val terms = query.split(Regex("\\s+")).filter(String::isNotBlank).distinct()

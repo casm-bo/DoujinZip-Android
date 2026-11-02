@@ -6,9 +6,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SubscriptionFeedTest {
+    @Test fun unchangedProbeSkipsFullScanUntilDailyCheckAndManualAlwaysScans() {
+        assertFalse(subscriptionFeedFullRefreshDue(100,1,"same","same",false))
+        assertTrue(subscriptionFeedFullRefreshDue(100,1,"old","new",false))
+        assertTrue(subscriptionFeedFullRefreshDue(100,1,"same","same",true))
+        assertTrue(subscriptionFeedFullRefreshDue(86_400_001,1,"same","same",false))
+        assertTrue(subscriptionFeedFullRefreshDue(100,1,"same",null,false))
+    }
+
     @Test fun refreshPolicyHandlesFreshCacheExpiryManualRefreshAndClockRollback() {
-        assertFalse(subscriptionFeedRefreshDue(300_000,1,true,false))
-        assertTrue(subscriptionFeedRefreshDue(300_001,1,true,false))
+        assertFalse(subscriptionFeedRefreshDue(30_000,1,true,false))
+        assertTrue(subscriptionFeedRefreshDue(30_001,1,true,false))
         assertTrue(subscriptionFeedRefreshDue(10,1,true,true))
         assertTrue(subscriptionFeedRefreshDue(10,1,false,false))
         assertTrue(subscriptionFeedRefreshDue(1,10,true,false))
