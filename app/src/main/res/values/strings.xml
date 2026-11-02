@@ -632,4 +632,9 @@
     <string name="conflict_enabled">Enabled</string>
     <string name="conflict_disabled">Disabled</string>
     <string name="conflict_auto">Automatic</string>
+    <string name="feed_title">Subscription feed</string>
+    <string name="feed_count">%1$d matching works</string>
+    <string name="feed_empty">No matching works. Add or enable subscriptions to see their results here.</string>
+    <string name="feed_more">Load more</string>
+    <string name="feed_error">Could not load the subscription feed.</string>
 </resources>

@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 internal enum class ActionSymbol {
     FILTER, SORT, GRID, LIST, FOLDER, SERIES, SELECT, REFRESH, SYNC, STAR, HEART,
     PAGE, CLEAR, DELETE, LANGUAGE, EDIT, READ, MERGE, SAVE, HIDE, PLAY, PAUSE,
-    SEARCH, DEVICE, PC, BACK, SETTINGS, ADD, BELL, LOCK, APPEARANCE, INFO, BOOK,
+    SEARCH, DEVICE, PC, BACK, SETTINGS, ADD, BELL, LOCK, APPEARANCE, INFO, BOOK, NEWSPAPER,
 }
 
 /** Small vector icons share the surrounding button's color and accessible label. */
@@ -51,6 +51,7 @@ internal fun ActionIcon(symbol: ActionSymbol, modifier: Modifier = Modifier) {
                 ActionSymbol.SORT -> { line(3f, 6f, 15f, 6f); line(3f, 12f, 12f, 12f); line(3f, 18f, 9f, 18f) }
                 ActionSymbol.GRID -> { box(3f, 3f, 7f, 7f); box(14f, 3f, 7f, 7f); box(3f, 14f, 7f, 7f); box(14f, 14f, 7f, 7f) }
                 ActionSymbol.LIST -> repeat(3) { row -> val y = 5f + row * 7f; box(3f, y - 1f, 2f, 2f); line(9f, y, 21f, y) }
+                ActionSymbol.NEWSPAPER -> { box(3f, 3f, 16f, 18f); path(19f to 7f, 22f to 7f, 22f to 21f, 19f to 21f); box(6f, 6f, 5f, 5f); line(14f, 6f, 16f, 6f); line(14f, 10f, 16f, 10f); line(6f, 15f, 16f, 15f); line(6f, 18f, 16f, 18f) }
                 ActionSymbol.FOLDER -> path(3f to 6f, 10f to 6f, 12f to 8f, 21f to 8f, 21f to 20f, 3f to 20f, close = true)
                 ActionSymbol.SERIES -> { box(3f, 5f, 5f, 15f); box(10f, 5f, 5f, 15f); path(17f to 6f, 21f to 5f, 24f to 19f, 20f to 20f, close = true) }
                 ActionSymbol.SELECT -> { box(3f, 3f, 18f, 18f); path(7f to 12f, 11f to 16f, 18f to 8f) }

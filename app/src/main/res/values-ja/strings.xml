@@ -632,4 +632,9 @@
     <string name="conflict_enabled">有効</string>
     <string name="conflict_disabled">無効</string>
     <string name="conflict_auto">自動</string>
+    <string name="feed_title">購読フィード</string>
+    <string name="feed_count">全%1$d件</string>
+    <string name="feed_empty">該当する作品がありません。購読を追加または有効にしてください。</string>
+    <string name="feed_more">さらに読み込む</string>
+    <string name="feed_error">購読フィードを読み込めませんでした。</string>
 </resources>

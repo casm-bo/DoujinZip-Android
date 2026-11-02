@@ -16,6 +16,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.DropdownMenu
@@ -153,6 +154,7 @@ fun BrowserScreen(
     onSubscribeCurrent: () -> Unit = {},
     onToggleTagFilter: (com.doujinzip.android.model.SearchTagFilter) -> Unit = {},
     onCustomBlockedTags: (Set<String>) -> Unit = {},
+    onFeedGalleryLoaded: (GallerySummary) -> Unit = {},
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     val context = LocalContext.current
@@ -269,6 +271,18 @@ fun BrowserScreen(
     val viewPreferences = remember(context) { LibraryPreferenceStore(context) }
     var gridView by rememberSaveable { mutableStateOf(viewPreferences.loadSearchGridView()) }
     var gridColumns by rememberSaveable { mutableIntStateOf(viewPreferences.loadSearchGridColumns()) }
+    var showFeed by rememberSaveable(state.selectedProfileId) { mutableStateOf(false) }
+    val feedClient = remember { com.doujinzip.android.network.HitomiClient() }
+    if (showFeed) {
+        CompositionLocalProvider(LocalWorkCardSize provides WorkCardSize.fromColumns(gridColumns)) {
+            SubscriptionFeedScreen(state, contentPadding, gridView, gridColumns,
+                loadIds = { com.doujinzip.android.data.subscriptionFeedIds(state.subscriptions.map { it.value }, state.searchTagFilters, state.customBlockedTags, feedClient::subscriptionIds) },
+                loadGallery = feedClient::getGallery, onLoaded = onFeedGalleryLoaded,
+                onBack = { showFeed = false }, onOpen = onGalleryClick, onLongClick = onGalleryLongClick,
+                onFavorite = onToggleLibraryFavorite, onFacet = { showFeed = false; onSearchFacet(it) })
+        }
+        return
+    }
     var pageDialog by rememberSaveable { mutableStateOf(false) }
     var pageInput by rememberSaveable { mutableStateOf("") }
     val searchExpansion = LocalInlineSearch.current ?: remember(pageKey) { InlineSearchState() }
@@ -310,7 +324,7 @@ fun BrowserScreen(
             }
         })
         if (!searchExpansion.expanded) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedButton(onClick = { togglePanel("languages") }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 colors = activeFilterButtonColors(state.preferredLanguages.isNotEmpty() || editing && expandedPanel == "languages")) {
                 ActionIcon(ActionSymbol.LANGUAGE); Spacer(Modifier.width(4.dp))
@@ -323,7 +337,10 @@ fun BrowserScreen(
                 colors = activeFilterButtonColors(state.searchTagFilters.isNotEmpty() || state.customBlockedTags.isNotEmpty() || editing && expandedPanel == "tag-filters")) {
                 ActionIcon(ActionSymbol.FILTER); Spacer(Modifier.width(4.dp)); Text(strings[R.string.search_tag_filters])
             }
-            Spacer(Modifier.weight(1f))
+            IconButton(onClick = { showFeed = true }, modifier = Modifier.semantics { contentDescription = strings[R.string.feed_title] }) {
+                ActionIcon(ActionSymbol.NEWSPAPER)
+            }
+            Spacer(Modifier.width(4.dp))
             SearchSortMenu(state.searchQuery, enabled = !state.isLoadingPage) { oldest ->
                 val query = state.searchQuery.replace(Regex("(?i)(^|\\s)sort:(oldest|newest)(?=\\s|$)"), " ").trim()
                 onQueryChange(listOf(query, if (oldest) "sort:oldest" else "sort:newest").filter { it.isNotBlank() }.joinToString(" "))
@@ -493,7 +510,7 @@ fun BrowserScreen(
 }
 
 @Composable
-private fun GalleryCard(
+internal fun GalleryCard(
     gallery: GallerySummary,
     gridView: Boolean = false,
     read: Boolean,

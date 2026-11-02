@@ -1199,6 +1199,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private val historyMetadataPermits = kotlinx.coroutines.sync.Semaphore(2)
+    fun rememberFeedGallery(gallery: GallerySummary) {
+        uiState = uiState.copy(galleryCache = cacheGalleries(uiState.galleryCache, listOf(presentedGallery(gallery))))
+    }
     suspend fun loadHistoryMetadata(galleryId: Long) {
         historyMetadataPermits.acquire()
         try {

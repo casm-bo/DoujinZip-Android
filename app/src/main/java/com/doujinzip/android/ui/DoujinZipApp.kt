@@ -896,6 +896,7 @@ private fun MainTabContent(
                 onSearch = viewModel::search,
                 onOpenSubscriptions = { viewModel.openSubscriptions() },
                 onSubscribeCurrent = viewModel::subscribeCurrentSearch,
+                onFeedGalleryLoaded = viewModel::rememberFeedGallery,
                 onToggleTagFilter = viewModel::toggleSearchTagFilter,
                 onCustomBlockedTags = viewModel::setCustomBlockedTags,
                 onRecentSearch = viewModel::repeatSearch,

@@ -632,4 +632,9 @@
     <string name="conflict_enabled">启用</string>
     <string name="conflict_disabled">禁用</string>
     <string name="conflict_auto">自动</string>
+    <string name="feed_title">订阅动态</string>
+    <string name="feed_count">共 %1$d 部</string>
+    <string name="feed_empty">暂无匹配作品。请添加或启用订阅。</string>
+    <string name="feed_more">加载更多</string>
+    <string name="feed_error">无法加载订阅动态。</string>
 </resources>
