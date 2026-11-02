@@ -35,7 +35,13 @@ class SubscriptionFeedScreenTest {
                 loaded+=id; gallery(id)
             },onLoaded={},onBack={},onOpen={opened=it},onLongClick={},onFavorite={},onFacet={}) } }
         compose.waitUntil(10_000) { loaded.size==25 }
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText(strings.getString(R.string.feed_more)))
+        compose.onNodeWithTag("dynamic-scrollbar").performTouchInput {
+            down(androidx.compose.ui.geometry.Offset(centerX,height*.9f))
+            advanceEventTime(650)
+            moveTo(androidx.compose.ui.geometry.Offset(centerX,height.toFloat()))
+            up()
+        }
+        compose.onNodeWithText(strings.getString(R.string.feed_more)).assertIsDisplayed()
         compose.onNodeWithText(strings.getString(R.string.feed_more)).performClick()
         compose.waitUntil(5_000) { !fail }
         compose.onNodeWithText("Synthetic failure").assertExists()

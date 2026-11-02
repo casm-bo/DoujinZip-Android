@@ -154,7 +154,8 @@ internal fun SubscriptionFeedScreen(
         }
         if(busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         if(indexReady && ids.isEmpty() && !busy) Text(strings[R.string.feed_empty],Modifier.padding(16.dp))
-        LazyVerticalGrid(GridCells.Fixed(if(grid) columns else 1),state=listState,modifier=Modifier.weight(1f),contentPadding=PaddingValues(16.dp),
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+        LazyVerticalGrid(GridCells.Fixed(if(grid) columns else 1),state=listState,modifier=Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),
             verticalArrangement=Arrangement.spacedBy(12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
             items(galleries,key={it.id}) { item ->
                 val gallery=state.galleryCache[item.id] ?: item
@@ -168,6 +169,8 @@ internal fun SubscriptionFeedScreen(
             if(indexReady && galleries.size<ids.size && error==null) item(span={GridItemSpan(maxLineSpan)}) {
                 TextButton({pageJob=scope.launch { nextPage() }},enabled=!busy,modifier=Modifier.fillMaxWidth()) { Text(strings[R.string.feed_more]) }
             }
+        }
+        DynamicVerticalScrollbar(listState)
         }
     }
 }
