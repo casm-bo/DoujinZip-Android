@@ -637,4 +637,5 @@
     <string name="feed_empty">No matching works. Add or enable subscriptions to see their results here.</string>
     <string name="feed_more">Load more</string>
     <string name="feed_error">Could not load the subscription feed.</string>
+    <string name="feed_filter">Subscriptions</string>
 </resources>

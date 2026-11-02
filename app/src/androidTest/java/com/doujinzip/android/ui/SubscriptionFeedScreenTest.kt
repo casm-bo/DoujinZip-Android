@@ -30,7 +30,7 @@ class SubscriptionFeedScreenTest {
         var fail=true
         var opened:Long?=null
         compose.setContent { DoujinZipTheme { SubscriptionFeedScreen(MainUiState(),PaddingValues(0.dp),false,2,
-            loadIds={(1L..27L).toList().reversed()},loadGallery={id ->
+            loadIds={ _ ->(1L..27L).toList().reversed()},loadGallery={id ->
                 if(id==2L && fail) { fail=false; error("Synthetic failure") }
                 loaded+=id; gallery(id)
             },onLoaded={},onBack={},onOpen={opened=it},onLongClick={},onFavorite={},onFacet={}) } }
@@ -51,7 +51,7 @@ class SubscriptionFeedScreenTest {
         var offline=false
         var details=0
         compose.setContent { DoujinZipTheme { if(visible) SubscriptionFeedScreen(MainUiState(),PaddingValues(0.dp),false,2,
-            loadIds={if(offline) error("Synthetic offline");listOf(42L)},loadGallery={details++;gallery(it)},
+            loadIds={ _ ->if(offline) error("Synthetic offline");listOf(42L)},loadGallery={details++;gallery(it)},
             onLoaded={},onBack={},onOpen={},onLongClick={},onFavorite={},onFacet={}) } }
         compose.waitUntil(5000) { details==1 }
         compose.onNodeWithText("Synthetic 42").assertExists()
@@ -63,10 +63,28 @@ class SubscriptionFeedScreenTest {
         compose.onNodeWithText("Synthetic 42").assertExists()
         compose.runOnIdle { assertEquals(1,details) }
     }
+    @Test fun filtersSubscriptionsWithoutPausingThemAndRemembersSort() {
+        val values=listOf("Alpha","Beta").map { com.doujinzip.android.model.SearchSubscription(id=it,name=it,query="artist:${it.lowercase()}",enabled=true) }
+        val state=MainUiState(subscriptions=values.map { com.doujinzip.android.data.SubscriptionRecord(it,null,null,null,0,null) })
+        var selection=emptyList<String>()
+        compose.setContent { DoujinZipTheme { SubscriptionFeedScreen(state,PaddingValues(0.dp),false,2,
+            loadIds={selected -> selection=selected.map { it.id };if(selected.isEmpty()) emptyList() else listOf(42L,21L)},loadGallery={gallery(it)},
+            onLoaded={},onBack={},onOpen={},onLongClick={},onFavorite={},onFacet={}) } }
+        compose.waitUntil(5000) { selection.size==2 }
+        compose.onNodeWithText(strings.getString(R.string.feed_filter)).performClick()
+        compose.onNodeWithText("Alpha").performClick()
+        compose.waitUntil(5000) { selection==listOf("Beta") }
+        androidx.test.espresso.Espresso.pressBack()
+        compose.waitUntil(5000) { compose.onAllNodes(hasProgressBarRangeInfo(androidx.compose.ui.semantics.ProgressBarRangeInfo.Indeterminate)).fetchSemanticsNodes().isEmpty() }
+        compose.onNodeWithText(strings.getString(R.string.ui_sort)).performClick()
+        compose.onNodeWithText(strings.getString(R.string.ui_oldest_first)).performClick()
+        compose.waitUntil(5000) { InstrumentationRegistry.getInstrumentation().targetContext.getSharedPreferences("subscription_feed",android.content.Context.MODE_PRIVATE).getBoolean("oldest-",false) }
+        compose.runOnIdle { assertTrue(state.subscriptions.all { it.value.enabled }) }
+    }
     @Test fun showsEmptyFeedAndRefreshesAfterAnIndexFailure() {
         var calls=0
         compose.setContent { DoujinZipTheme { SubscriptionFeedScreen(MainUiState(),PaddingValues(0.dp),false,2,
-            loadIds={calls++; if(calls==1) error("Synthetic offline");emptyList()},loadGallery={gallery(it)},
+            loadIds={ _ ->calls++; if(calls==1) error("Synthetic offline");emptyList()},loadGallery={gallery(it)},
             onLoaded={},onBack={},onOpen={},onLongClick={},onFavorite={},onFacet={}) } }
         compose.waitUntil(5_000) { calls==1 }
         compose.onNodeWithText(strings.getString(R.string.ui_try_again)).performClick()

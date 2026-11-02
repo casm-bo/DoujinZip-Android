@@ -17,16 +17,22 @@ import kotlinx.coroutines.cancelAndJoin
 @Composable
 internal fun SubscriptionFeedScreen(
     state: MainUiState, padding: PaddingValues, grid: Boolean, columns: Int,
-    loadIds: suspend () -> List<Long>, loadGallery: suspend (Long) -> GallerySummary,
+    loadIds: suspend (List<com.doujinzip.android.model.SearchSubscription>) -> List<Long>, loadGallery: suspend (Long) -> GallerySummary,
     onLoaded: (GallerySummary) -> Unit, onBack: () -> Unit, onOpen: (Long) -> Unit,
     onLongClick: (Long) -> Unit, onFavorite: (String) -> Unit, onFacet: (String) -> Unit,
 ) {
     val strings=androidx.compose.ui.platform.LocalResources.current
     val context=androidx.compose.ui.platform.LocalContext.current
-    val signature=state.selectedProfileId.orEmpty()+state.subscriptions.map { it.value }.filter { it.enabled && !it.deleted }.flatMap { it.queries }.distinct().sorted().toString()+state.searchTagFilters.sortedBy { it.name }+state.customBlockedTags.sorted()
+    val preferences=remember { context.getSharedPreferences("subscription_feed",android.content.Context.MODE_PRIVATE) }
+    val scopeKey=state.selectedProfileId.orEmpty()
+    var excluded by remember(scopeKey) { mutableStateOf(preferences.getStringSet("excluded-$scopeKey",emptySet()).orEmpty().toSet()) }
+    var oldest by remember(scopeKey) { mutableStateOf(preferences.getBoolean("oldest-$scopeKey",false)) }
+    var filterMenu by remember { mutableStateOf(false) }
+    val subscriptions=state.subscriptions.map { it.value }.filter { it.enabled && !it.deleted }
+    val selected=subscriptions.filter { it.id !in excluded }
+    val signature=scopeKey+selected.flatMap { it.queries }.distinct().sorted().toString()+state.searchTagFilters.sortedBy { it.name }+state.customBlockedTags.sorted()+oldest
     val session=remember(signature) { java.security.MessageDigest.getInstance("SHA-256").digest(signature.toByteArray()).joinToString("") { "%02x".format(it) } }
     val cache=remember { com.doujinzip.android.data.SearchResultCache(java.io.File(context.filesDir,"subscription-feed")) }
-    val preferences=remember { context.getSharedPreferences("subscription_feed",android.content.Context.MODE_PRIVATE) }
     val listState=rememberLazyGridState()
     var restored by remember(session) { mutableStateOf(false) }
     LaunchedEffect(session,restored) {
@@ -61,7 +67,7 @@ internal fun SubscriptionFeedScreen(
         catch(failure: Exception) { error=failure.message ?: strings[R.string.feed_error] }
         finally { persist(); busy=false }
     }
-    LaunchedEffect(state.selectedProfileId, state.subscriptions.map { it.value }, state.searchTagFilters, state.customBlockedTags, revision) {
+    LaunchedEffect(session, revision) {
         pageJob?.cancelAndJoin()
         retryIndex=true; busy=true; error=null
         if(!restored) {
@@ -73,7 +79,8 @@ internal fun SubscriptionFeedScreen(
             restored=true
         }
         try {
-            val fresh=loadIds()
+            val loadedIds=loadIds(selected)
+            val fresh=if(oldest) loadedIds.sorted() else loadedIds.sortedDescending()
             val previous=(state.galleryCache.values+galleries).associateBy { it.id }
             val count=galleries.size.coerceAtLeast(25)
             val refreshed=mutableListOf<GallerySummary>()
@@ -90,6 +97,23 @@ internal fun SubscriptionFeedScreen(
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
             TextButton(onBack) { ActionIcon(ActionSymbol.BACK); Text(strings[R.string.feed_title]) }
             TextButton({revision++},enabled=!busy) { ActionIcon(ActionSymbol.REFRESH); Text(strings[R.string.ui_refresh]) }
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),horizontalArrangement=Arrangement.SpaceBetween) {
+            Box {
+                OutlinedButton({filterMenu=true}) { ActionIcon(ActionSymbol.FILTER); Text(strings[R.string.feed_filter]) }
+                DropdownMenu(filterMenu,{filterMenu=false}) {
+                    DropdownMenuItem(text={Text(strings[R.string.ui_all])},onClick={excluded=emptySet();preferences.edit().putStringSet("excluded-$scopeKey",excluded).apply()})
+                    subscriptions.forEach { subscription ->
+                        DropdownMenuItem(text={Text(subscription.name)},leadingIcon={Checkbox(subscription.id !in excluded,null)},onClick={
+                            excluded=if(subscription.id in excluded) excluded-subscription.id else excluded+subscription.id
+                            preferences.edit().putStringSet("excluded-$scopeKey",excluded).apply()
+                        })
+                    }
+                }
+            }
+            SearchSortMenu(if(oldest) "sort:oldest" else "sort:newest",enabled=!busy) {
+                oldest=it;preferences.edit().putBoolean("oldest-$scopeKey",it).apply()
+            }
         }
         if(indexReady) Text(strings[R.string.feed_count,ids.size],Modifier.padding(horizontal=16.dp))
         if(error!=null) {

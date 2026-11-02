@@ -637,4 +637,5 @@
     <string name="feed_empty">暂无匹配作品。请添加或启用订阅。</string>
     <string name="feed_more">加载更多</string>
     <string name="feed_error">无法加载订阅动态。</string>
+    <string name="feed_filter">订阅筛选</string>
 </resources>

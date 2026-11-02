@@ -637,4 +637,5 @@
     <string name="feed_empty">결과가 없습니다. 구독을 등록하거나 켜면 조건에 맞는 작품이 표시됩니다.</string>
     <string name="feed_more">더 불러오기</string>
     <string name="feed_error">구독피드를 불러오지 못했습니다.</string>
+    <string name="feed_filter">구독 필터</string>
 </resources>

@@ -637,4 +637,5 @@
     <string name="feed_empty">該当する作品がありません。購読を追加または有効にしてください。</string>
     <string name="feed_more">さらに読み込む</string>
     <string name="feed_error">購読フィードを読み込めませんでした。</string>
+    <string name="feed_filter">購読フィルター</string>
 </resources>

@@ -279,7 +279,7 @@ fun BrowserScreen(
     if (showFeed) {
         CompositionLocalProvider(LocalWorkCardSize provides WorkCardSize.fromColumns(gridColumns)) {
             SubscriptionFeedScreen(state, contentPadding, gridView, gridColumns,
-                loadIds = { com.doujinzip.android.data.subscriptionFeedIds(state.subscriptions.map { it.value }, state.searchTagFilters, state.customBlockedTags, feedClient::subscriptionIds) },
+                loadIds = { selected -> com.doujinzip.android.data.subscriptionFeedIds(selected, state.searchTagFilters, state.customBlockedTags, feedClient::subscriptionIds) },
                 loadGallery = feedClient::getGallery, onLoaded = onFeedGalleryLoaded,
                 onBack = { showFeed = false }, onOpen = onGalleryClick, onLongClick = onGalleryLongClick,
                 onFavorite = onToggleLibraryFavorite, onFacet = { showFeed = false; onSearchFacet(it) })
@@ -610,7 +610,7 @@ private fun BoxScope.SearchPageIndicator(listState: LazyGridState, index: Search
 }
 
 @Composable
-private fun SearchSortMenu(query: String, enabled: Boolean, onSelect: (Boolean) -> Unit) {
+internal fun SearchSortMenu(query: String, enabled: Boolean, onSelect: (Boolean) -> Unit) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     var expanded by remember { mutableStateOf(false) }
     val oldest = remember(query) { parseHitomiSearchOrder(query).oldest }
