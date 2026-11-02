@@ -45,14 +45,14 @@ internal fun SubscriptionFeedScreen(
     var galleries by remember { mutableStateOf(emptyList<GallerySummary>()) }
     var busy by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
-    var revision by remember { mutableIntStateOf(0) }
+    var revision by remember(session) { mutableIntStateOf(0) }
+    var pendingIds by remember(session) { mutableStateOf(emptyList<Long>()) }
     var indexReady by remember { mutableStateOf(false) }
     var retryIndex by remember { mutableStateOf(false) }
     var pageJob by remember { mutableStateOf<Job?>(null) }
-    suspend fun persist() {
+    suspend fun persist(): Boolean {
         val index=com.doujinzip.android.data.SearchResultIndex(session,emptyList(),listOf(galleries.map { it.id },ids.drop(galleries.size)))
-        cache.writePage(index,1,galleries)
-        cache.writeIndex(index)
+        return cache.writePage(index,1,galleries) && cache.writeIndex(index)
     }
     suspend fun nextPage() {
         retryIndex=false; busy=true; error=null
@@ -76,16 +76,38 @@ internal fun SubscriptionFeedScreen(
             ids=if(page!=null) saved.ids else emptyList()
             galleries=page.orEmpty(); indexReady=page!=null
             if(galleries.isNotEmpty()) listState.scrollToItem(preferences.getInt("$session-index",0).coerceIn(0,galleries.lastIndex),preferences.getInt("$session-offset",0).coerceAtLeast(0))
+            pendingIds=cache.readIndex("$session-pending")?.ids.orEmpty()
             restored=true
+        }
+        if(!com.doujinzip.android.data.subscriptionFeedRefreshDue(System.currentTimeMillis(),preferences.getLong("$session-success",0),indexReady,revision>0)) {
+            busy=false
+            return@LaunchedEffect
         }
         try {
             val loadedIds=loadIds(selected)
             val fresh=if(oldest) loadedIds.sorted() else loadedIds.sortedDescending()
+            val existing=ids.toHashSet()
+            if(indexReady && revision==0 && fresh.any { it !in existing }) {
+                if(cache.writeIndex(com.doujinzip.android.data.SearchResultIndex("$session-pending",emptyList(),listOf(fresh)))) {
+                    pendingIds=fresh
+                    preferences.edit().putLong("$session-success",System.currentTimeMillis()).apply()
+                }
+                return@LaunchedEffect
+            }
+            val anchor=galleries.getOrNull(listState.firstVisibleItemIndex)?.id
+            val offset=listState.firstVisibleItemScrollOffset
             val previous=(state.galleryCache.values+galleries).associateBy { it.id }
-            val count=galleries.size.coerceAtLeast(25)
+            val count=maxOf(galleries.size,25,fresh.indexOf(anchor)+1)
             val refreshed=mutableListOf<GallerySummary>()
             for(id in fresh.take(count)) refreshed+=previous[id] ?: loadGallery(id).also(onLoaded)
-            ids=fresh; galleries=refreshed; indexReady=true; persist()
+            ids=fresh; galleries=refreshed; indexReady=true
+            val anchorIndex=fresh.indexOf(anchor)
+            if(anchorIndex>=0) listState.scrollToItem(anchorIndex,offset)
+            if(persist()) {
+                pendingIds=emptyList()
+                cache.writeIndex(com.doujinzip.android.data.SearchResultIndex("$session-pending",emptyList()))
+                preferences.edit().putLong("$session-success",System.currentTimeMillis()).apply()
+            }
         }
         catch(cancelled: CancellationException) { throw cancelled }
         catch(failure: Exception) { error=failure.message ?: strings[R.string.feed_error] }
@@ -115,6 +137,7 @@ internal fun SubscriptionFeedScreen(
                 oldest=it;preferences.edit().putBoolean("oldest-$scopeKey",it).apply()
             }
         }
+        if(pendingIds.isNotEmpty()) TextButton({revision++},enabled=!busy) { Text(strings[R.string.feed_new_items]) }
         if(indexReady) Text(strings[R.string.feed_count,ids.size],Modifier.padding(horizontal=16.dp))
         if(error!=null) {
             Text(error.orEmpty(),Modifier.padding(16.dp),color=MaterialTheme.colorScheme.error)

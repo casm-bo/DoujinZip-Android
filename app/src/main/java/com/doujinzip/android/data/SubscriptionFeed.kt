@@ -13,3 +13,6 @@ internal suspend fun subscriptionFeedIds(
     for (query in queries) ids.addAll(loadIds(applySearchTagFilters(query, filters, blockedTags)))
     return ids.sortedDescending()
 }
+
+internal fun subscriptionFeedRefreshDue(now: Long, lastSuccess: Long, hasCache: Boolean, force: Boolean): Boolean =
+    force || !hasCache || lastSuccess <= 0 || now < lastSuccess || now-lastSuccess >= 5*60_000L

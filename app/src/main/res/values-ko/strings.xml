@@ -638,4 +638,5 @@
     <string name="feed_more">더 불러오기</string>
     <string name="feed_error">구독피드를 불러오지 못했습니다.</string>
     <string name="feed_filter">구독 필터</string>
+    <string name="feed_new_items">새 항목 있음</string>
 </resources>

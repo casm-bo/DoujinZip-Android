@@ -638,4 +638,5 @@
     <string name="feed_more">加载更多</string>
     <string name="feed_error">无法加载订阅动态。</string>
     <string name="feed_filter">订阅筛选</string>
+    <string name="feed_new_items">有新作品</string>
 </resources>

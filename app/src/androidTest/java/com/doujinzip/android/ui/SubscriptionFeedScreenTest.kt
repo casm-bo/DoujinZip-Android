@@ -58,7 +58,12 @@ class SubscriptionFeedScreenTest {
         compose.waitUntil(5000) { compose.onAllNodes(hasProgressBarRangeInfo(androidx.compose.ui.semantics.ProgressBarRangeInfo.Indeterminate)).fetchSemanticsNodes().isEmpty() }
         compose.runOnIdle { visible=false }
         compose.waitForIdle()
-        compose.runOnIdle { offline=true;visible=true }
+        compose.runOnIdle {
+            offline=true
+            val prefs=InstrumentationRegistry.getInstrumentation().targetContext.getSharedPreferences("subscription_feed",android.content.Context.MODE_PRIVATE)
+            prefs.all.keys.filter { it.endsWith("-success") }.forEach { prefs.edit().putLong(it,1).commit() }
+            visible=true
+        }
         compose.waitUntil(5000) { compose.onAllNodesWithText("Synthetic offline").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Synthetic 42").assertExists()
         compose.runOnIdle { assertEquals(1,details) }
@@ -80,6 +85,31 @@ class SubscriptionFeedScreenTest {
         compose.onNodeWithText(strings.getString(R.string.ui_oldest_first)).performClick()
         compose.waitUntil(5000) { InstrumentationRegistry.getInstrumentation().targetContext.getSharedPreferences("subscription_feed",android.content.Context.MODE_PRIVATE).getBoolean("oldest-",false) }
         compose.runOnIdle { assertTrue(state.subscriptions.all { it.value.enabled }) }
+    }
+    @Test fun freshCacheSkipsNetworkAndExpiredCacheOffersNewItemsWithoutReplacingResults() {
+        var visible by mutableStateOf(true)
+        var calls=0
+        compose.setContent { DoujinZipTheme { if(visible) SubscriptionFeedScreen(MainUiState(),PaddingValues(0.dp),false,2,
+            loadIds={ _ -> calls++;if(calls==1) listOf(42L) else listOf(50L,42L)},loadGallery={gallery(it)},
+            onLoaded={},onBack={},onOpen={},onLongClick={},onFavorite={},onFacet={}) } }
+        fun waitIdle() { compose.waitUntil(5000) { compose.onAllNodes(hasProgressBarRangeInfo(androidx.compose.ui.semantics.ProgressBarRangeInfo.Indeterminate)).fetchSemanticsNodes().isEmpty() } }
+        compose.waitUntil(5000) { calls==1 };waitIdle()
+        compose.runOnIdle { visible=false };compose.waitForIdle()
+        compose.runOnIdle { visible=true };compose.waitForIdle();waitIdle()
+        compose.onNodeWithText("Synthetic 42").assertExists()
+        compose.runOnIdle { assertEquals(1,calls);visible=false };compose.waitForIdle()
+        compose.runOnIdle {
+            val prefs=InstrumentationRegistry.getInstrumentation().targetContext.getSharedPreferences("subscription_feed",android.content.Context.MODE_PRIVATE)
+            prefs.all.keys.filter { it.endsWith("-success") }.forEach { prefs.edit().putLong(it,1).commit() }
+            visible=true
+        }
+        compose.waitUntil(5000) { calls==2 };waitIdle()
+        compose.onNodeWithText(strings.getString(R.string.feed_new_items)).assertExists()
+        compose.onNodeWithText("Synthetic 42").assertExists()
+        compose.onNodeWithText("Synthetic 50").assertDoesNotExist()
+        compose.onNodeWithText(strings.getString(R.string.feed_new_items)).performClick()
+        compose.waitUntil(5000) { calls==3 };waitIdle()
+        compose.onNodeWithText("Synthetic 50").assertExists()
     }
     @Test fun showsEmptyFeedAndRefreshesAfterAnIndexFailure() {
         var calls=0
