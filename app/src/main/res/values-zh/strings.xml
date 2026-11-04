@@ -595,6 +595,8 @@
     <string name="backup_export">导出备份</string>
     <string name="backup_import">导入备份</string>
     <string name="backup_failed">操作未完成。如已配对电脑，请连接并解决待同步更改或冲突后重试。导入时请检查备份文件是否有效。</string>
+    <string name="backup_prepare_failed">无法准备备份。如果已注册电脑，请检查连接，并解决待同步的更改或冲突。</string>
+    <string name="backup_write_failed">无法在所选位置写入或验证备份。</string>
     <string name="backup_saved">备份已保存并验证。</string>
     <string name="backup_verify">继续前验证身份</string>
     <string name="backup_verify_notice">请使用已设置的PIN、密码、图案或生物识别解锁。应用锁保持启用且不会导出。</string>

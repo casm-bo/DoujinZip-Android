@@ -595,6 +595,8 @@
     <string name="backup_export">バックアップを書き出す</string>
     <string name="backup_import">バックアップを読み込む</string>
     <string name="backup_failed">完了できませんでした。登録PCに接続し、未反映の変更・競合を解決して再試行してください。読み込みの場合はバックアップファイルを確認してください。</string>
+    <string name="backup_prepare_failed">バックアップを準備できませんでした。登録済みのPCがある場合は、接続と未同期の変更や競合を確認してください。</string>
+    <string name="backup_write_failed">選択した保存先にバックアップを書き込むか検証することができませんでした。</string>
     <string name="backup_saved">バックアップの保存と検証が完了しました。</string>
     <string name="backup_verify">続行するには本人確認</string>
     <string name="backup_verify_notice">設定したPIN・パスワード・パターンまたは生体認証で解除してください。ロックは維持され、バックアップには含まれません。</string>

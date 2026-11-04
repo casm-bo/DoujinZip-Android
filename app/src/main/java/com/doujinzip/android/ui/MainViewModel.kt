@@ -3867,7 +3867,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val uploadErrors = uploadMissingLocalBooks(profile, uiState.libraryBooks, uiState.libraryBooks.mapTo(mutableSetOf()) { it.id })
             check(uploadErrors.isEmpty()) { uploadErrors.joinToString("\n") }
             flushPendingLibrarySync()
-            val error = com.doujinzip.android.data.SubscriptionRefresh.run(getApplication(), profile, forceSync = true)
+            val error = com.doujinzip.android.data.SubscriptionRefresh.run(getApplication(), profile, forceSync = true, check = false)
             check(error == null) { error.orEmpty() }
             check(uiState.librarySyncError == null && uiState.presentationSyncError == null && pendingLibrarySyncCount() == 0) {
                 uiState.librarySyncError ?: uiState.presentationSyncError ?: strings[R.string.backup_pending]

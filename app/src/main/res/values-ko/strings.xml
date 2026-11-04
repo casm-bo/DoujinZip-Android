@@ -595,6 +595,8 @@
     <string name="backup_export">백업 내보내기</string>
     <string name="backup_import">백업 가져오기</string>
     <string name="backup_failed">작업을 완료하지 못했습니다. 등록 PC가 있으면 연결하고 미반영 변경·충돌을 해결한 뒤 재시도하세요. 가져오기라면 올바른 백업 파일인지 확인하세요.</string>
+    <string name="backup_prepare_failed">백업을 준비하지 못했습니다. 등록 PC가 있으면 연결 상태를 확인하고 미동기화 변경이나 충돌을 해결하세요.</string>
+    <string name="backup_write_failed">선택한 위치에 백업을 쓰거나 검증하지 못했습니다.</string>
     <string name="backup_saved">백업 저장 및 검증을 완료했습니다.</string>
     <string name="backup_verify">계속하려면 본인 확인</string>
     <string name="backup_verify_notice">설정한 PIN·비밀번호·패턴 또는 생체인증으로 잠금을 해제하세요. 잠금 설정은 유지되며 백업에 포함하지 않습니다.</string>

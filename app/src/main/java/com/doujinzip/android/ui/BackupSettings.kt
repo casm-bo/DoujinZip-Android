@@ -35,9 +35,12 @@ internal fun BackupSettings(onPrepare: suspend (String) -> File, onOpenConnectio
     var readyPath by rememberSaveable { mutableStateOf<String?>(null) }
     var restart by remember { mutableStateOf(false) }
     var failureDialog by remember { mutableStateOf(false) }
-    fun failed() { error = true; message = strings[R.string.backup_failed]; failureDialog = true }
+    fun failed(reason: Int = R.string.backup_failed) { error = true; message = strings[reason]; failureDialog = true }
     val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-        readyPath?.let { File(it).delete() }; readyPath = null
+        if (uri == null) {
+            readyPath?.let { File(it).delete() }
+            readyPath = null
+        }
         pendingSave = uri?.toString()
     }
     val open = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> pendingRead = uri?.toString() }
@@ -55,7 +58,9 @@ internal fun BackupSettings(onPrepare: suspend (String) -> File, onOpenConnectio
                 save.launch("doujin-backup-${java.time.LocalDate.now()}.zip")
             } catch (failure: Exception) {
                 if (failure is kotlinx.coroutines.CancellationException) throw failure
-                failed()
+                readyPath?.let { File(it).delete() }
+                readyPath = null
+                failed(R.string.backup_prepare_failed)
             } finally { busy = false }
         }
     }
@@ -64,10 +69,10 @@ internal fun BackupSettings(onPrepare: suspend (String) -> File, onOpenConnectio
         if (lock.locked) return@LaunchedEffect
         scope.launch {
             pendingSave = null; busy = true
-            var file: File? = null
+            val file = readyPath?.let(::File)
+            readyPath = null
             try {
-                // The picker may have stayed open while data changed. Sync and snapshot again.
-                file = onPrepare(AppCompatDelegate.getApplicationLocales().toLanguageTags())
+                requireNotNull(file)
                 withContext(Dispatchers.IO) {
                     val uri = android.net.Uri.parse(selected)
                     requireNotNull(context.contentResolver.openOutputStream(uri, "wt")).use { output -> file.inputStream().use { it.copyTo(output) } }
@@ -78,7 +83,7 @@ internal fun BackupSettings(onPrepare: suspend (String) -> File, onOpenConnectio
                 error = false; message = strings[R.string.backup_saved]
             } catch (failure: Exception) {
                 if (failure is kotlinx.coroutines.CancellationException) throw failure
-                failed()
+                failed(R.string.backup_write_failed)
             } finally { file?.delete(); busy = false }
         }
     }
@@ -102,8 +107,8 @@ internal fun BackupSettings(onPrepare: suspend (String) -> File, onOpenConnectio
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(strings[R.string.backup_scope])
         Text(strings[R.string.backup_plaintext], color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Button(enabled = !busy && action == null, onClick = { if (lock.enabled) authorize = "export" else action = "export" }) { Text(strings[R.string.backup_export]) }
-        OutlinedButton(enabled = !busy && action == null, onClick = { if (lock.enabled) authorize = "restore" else action = "restore" }) { Text(strings[R.string.backup_import]) }
+        Button(enabled = !busy && action == null && readyPath == null && pendingSave == null, onClick = { if (lock.enabled) authorize = "export" else action = "export" }) { Text(strings[R.string.backup_export]) }
+        OutlinedButton(enabled = !busy && action == null && readyPath == null && pendingSave == null, onClick = { if (lock.enabled) authorize = "restore" else action = "restore" }) { Text(strings[R.string.backup_import]) }
         TextButton(onClick = onOpenConnection, enabled = !busy) { Text(strings[R.string.ui_connection_settings]) }
         message?.let { Text(it, color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) }
     }
@@ -132,7 +137,7 @@ internal fun BackupSettings(onPrepare: suspend (String) -> File, onOpenConnectio
             android.os.Process.killProcess(android.os.Process.myPid())
         }) { Text(strings[R.string.ui_confirm]) } })
     if (failureDialog) AlertDialog(onDismissRequest = { failureDialog = false },
-        title = { Text(strings[R.string.backup_title]) }, text = { Text(strings[R.string.backup_failed]) },
+        title = { Text(strings[R.string.backup_title]) }, text = { Text(message ?: strings[R.string.backup_failed]) },
         confirmButton = { TextButton(onClick = { failureDialog = false; onOpenConnection() }) { Text(strings[R.string.ui_connection_settings]) } },
         dismissButton = { TextButton(onClick = { failureDialog = false }) { Text(strings[R.string.ui_confirm]) } })
     if (busy) AlertDialog(onDismissRequest = {}, title = { Text(strings[R.string.backup_working]) },

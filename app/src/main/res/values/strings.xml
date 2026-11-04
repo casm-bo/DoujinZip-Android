@@ -595,6 +595,8 @@
     <string name="backup_export">Export backup</string>
     <string name="backup_import">Import backup</string>
     <string name="backup_failed">Backup could not finish. If a PC is registered, connect it and resolve pending changes or conflicts, then retry. For import, check that the file is a valid backup.</string>
+    <string name="backup_prepare_failed">Could not prepare the backup. If a PC is registered, check the connection and resolve pending sync changes or conflicts.</string>
+    <string name="backup_write_failed">Could not write or verify the backup at the selected location.</string>
     <string name="backup_saved">Backup saved and verified.</string>
     <string name="backup_verify">Verify before continuing</string>
     <string name="backup_verify_notice">Unlock using the configured PIN, password, pattern or biometrics. Lock settings stay enabled and are not exported.</string>
