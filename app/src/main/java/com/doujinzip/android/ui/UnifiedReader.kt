@@ -541,7 +541,7 @@ private fun UnifiedZoomableImage(
                     },
                 )
             }
-            .transformable(transformState, enabled = scale > 1f),
+            .transformable(transformState, canPan = { scale > 1f }),
         contentScale = contentScale,
     )
 }

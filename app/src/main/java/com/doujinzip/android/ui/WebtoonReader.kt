@@ -5,6 +5,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -14,6 +16,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -69,9 +75,18 @@ internal fun WebtoonReader(
         } catch (error: CancellationException) { throw error }
         catch (_: Exception) { errors[page] = true }
     }
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    var zoom by remember(readerKey) { mutableFloatStateOf(1f) }
+    var horizontalPan by remember(readerKey) { mutableFloatStateOf(0f) }
+    BoxWithConstraints(Modifier.fillMaxSize().clipToBounds()) {
         val density = LocalDensity.current
         val width = with(density) { maxWidth.roundToPx() }.coerceAtLeast(1)
+        val zoomState = rememberTransformableState { centroid, zoomChange, panChange, _ ->
+            val nextZoom = (zoom * zoomChange).coerceIn(1f, 5f)
+            val anchor = if (centroid.x.isFinite()) centroid.x else width / 2f
+            horizontalPan = (anchor - (anchor - horizontalPan) * (nextZoom / zoom) + panChange.x)
+                .coerceIn(width * (1f - nextZoom), 0f)
+            zoom = nextZoom
+        }
         val endPullThreshold = with(density) { 64.dp.toPx() }
         val endScroll = remember(readerKey, endPullThreshold) {
             object : NestedScrollConnection {
@@ -126,6 +141,19 @@ internal fun WebtoonReader(
             onDispose { if (restored) position()?.let { resume = it; onProgress(it) } }
         }
         LazyColumn(state = state, modifier = Modifier.fillMaxSize().testTag("webtoon-reader")
+            .transformable(zoomState, canPan = { zoom > 1f && kotlin.math.abs(it.x) > kotlin.math.abs(it.y) })
+            .layout { measurable, constraints ->
+                // Keep the scroll viewport equal to the visible portion of the zoomed list.
+                val height = (constraints.maxHeight / zoom).roundToInt()
+                val list = measurable.measure(constraints.copy(minHeight = height, maxHeight = height))
+                layout(constraints.maxWidth, constraints.maxHeight) { list.place(0, 0) }
+            }
+            .graphicsLayer {
+                transformOrigin = TransformOrigin(0f, 0f)
+                scaleX = zoom
+                scaleY = zoom
+                translationX = horizontalPan.coerceIn(size.width * (1f - zoom), 0f)
+            }
             .nestedScroll(endScroll)
             .pointerInput(readerKey) {
                 awaitEachGesture {
