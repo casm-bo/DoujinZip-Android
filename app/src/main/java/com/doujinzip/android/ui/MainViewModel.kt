@@ -1007,13 +1007,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    fun openNextLibraryReaderTab(bookId: String) {
+    fun openNextLibraryReaderTab(bookId: String, resume: Boolean = false) {
         val workspace = uiState.galleryWorkspace
         val current = workspace.activeTab.currentPage as? BrowserPage.LibraryReader ?: return
         if (current.bookId == bookId) return
         val book = uiState.libraryBooks.firstOrNull { it.id == bookId } ?: return
         openLibraryBook(bookId)
-        applyGalleryWorkspace(workspace.continueLibraryReader(BrowserPage.LibraryReader(bookId, book.title, 0)))
+        applyGalleryWorkspace(workspace.continueLibraryReader(BrowserPage.LibraryReader(
+            bookId, book.title, if (resume) uiState.libraryProgress[bookId] ?: 0 else 0,
+        )))
     }
 
     fun initialMainDestination(): String = browserPreferenceStore.loadMainDestination()

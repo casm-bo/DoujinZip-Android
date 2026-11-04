@@ -162,6 +162,7 @@ internal fun UnifiedReader(
         mutableStateOf(initialThumbnailVisibility(preferences))
     }
     var settingsVisible by remember(readerKey) { mutableStateOf(false) }
+    var previousBookDialog by remember(readerKey) { mutableStateOf(false) }
     var nextBookDialog by remember(readerKey) { mutableStateOf(false) }
     var pagerReady by remember(readerKey) { mutableStateOf(false) }
     LaunchedEffect(actualMode) {
@@ -189,6 +190,7 @@ internal fun UnifiedReader(
     fun moveTo(page: Int) {
         when {
             page in pages.indices -> if (actualMode == ViewerReadingMode.WEBTOON) webtoonJump = page else scope.launch { pagerState.animateScrollToPage(page) }
+            page < 0 && previousBookTitle != null && onOpenPreviousBook != null -> previousBookDialog = true
             page >= pages.size && nextBookTitle != null && onOpenNextBook != null -> nextBookDialog = true
         }
     }
@@ -271,7 +273,9 @@ internal fun UnifiedReader(
                 isSeries = isSeries || previousBookTitle != null || nextBookTitle != null,
                 previousBookTitle = previousBookTitle,
                 nextBookTitle = nextBookTitle,
-                onPrevious = onOpenPreviousBook,
+                onPrevious = onOpenPreviousBook?.let { openPrevious ->
+                    { if (currentPage == 0) previousBookDialog = true else openPrevious() }
+                },
                 onNext = onOpenNextBook,
                 favorite = favorite,
                 onBack = onBack,
@@ -322,6 +326,20 @@ internal fun UnifiedReader(
             },
             onResetMode = { selectMode(null) },
             onDismiss = { settingsVisible = false },
+        )
+    }
+    if (previousBookDialog && previousBookTitle != null && onOpenPreviousBook != null) {
+        AlertDialog(
+            onDismissRequest = { previousBookDialog = false },
+            title = { Text(strings[R.string.ui_previous_chapter]) },
+            text = { Text(strings[R.string.ui_continue_with, previousBookTitle]) },
+            confirmButton = {
+                TextButton(onClick = {
+                    previousBookDialog = false
+                    onOpenPreviousBook()
+                }) { Text(strings[R.string.ui_open]) }
+            },
+            dismissButton = { TextButton(onClick = { previousBookDialog = false }) { Text(strings[R.string.ui_cancel]) } },
         )
     }
     if (nextBookDialog && nextBookTitle != null && onOpenNextBook != null) {

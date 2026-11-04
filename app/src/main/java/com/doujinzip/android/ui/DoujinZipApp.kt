@@ -433,7 +433,7 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
                     },
                     isSeries = bookId in viewModel.uiState.customSeriesByBookId,
                     previousBookTitle = previousBook?.title,
-                    onOpenPreviousBook = { previousBook?.let { viewModel.openNextLibraryReaderTab(it.id) } },
+                    onOpenPreviousBook = { previousBook?.let { viewModel.openNextLibraryReaderTab(it.id, resume = true) } },
                     nextBookTitle = nextBook?.title,
                     onOpenNextBook = {
                         nextBook?.let {
