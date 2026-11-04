@@ -175,18 +175,17 @@ fun BrowserWorkspace.selectSearchTab(
     preferredLanguages: Set<String> = emptySet(),
 ): BrowserWorkspace? {
     val queryKey = searchTabKey(query, preferredLanguages)
-    tabs.forEach { tab ->
-        if (tab.groupId != activeTab.groupId) return@forEach
-        tab.history.forEachIndexed { index, page ->
-            if (page is BrowserPage.Search && searchTabKey(page.query, page.preferredLanguages) == queryKey) {
-                return copy(
-                    tabs = tabs.map { current ->
-                        if (current.id == tab.id) current.copy(currentIndex = index) else current
-                    },
-                    activeTabId = tab.id,
-                )
-            }
-        }
+    val archivedTabs = groups.flatMap { it.archivedTabs }
+    (listOf(activeTab) + tabs.filterNot { it.id == activeTabId } + archivedTabs).forEach { tab ->
+        val index = (listOf(tab.currentIndex) + tab.history.indices.reversed()).firstOrNull { index ->
+            val page = tab.history[index] as? BrowserPage.Search
+            page != null && searchTabKey(page.query, page.preferredLanguages) == queryKey
+        } ?: return@forEach
+        val workspace = if (tab in archivedTabs) restoreGroup(requireNotNull(tab.groupId)) else this
+        return workspace.copy(
+            tabs = workspace.tabs.map { if (it.id == tab.id) it.copy(currentIndex = index) else it },
+            activeTabId = tab.id,
+        )
     }
     return null
 }
@@ -330,12 +329,13 @@ val BrowserPage.label: String
 internal fun searchTabKey(
     query: String,
     preferredLanguages: Set<String> = emptySet(),
-): String = (normalizeSearchSeparators(query).split(' ') + preferredLanguages.map { "language:$it" })
-    .filter(String::isNotBlank)
-    .map(String::lowercase)
-    .distinct()
-    .sorted()
-    .joinToString("\u0000")
+): String = queriesWithPreferredLanguages(query, preferredLanguages)
+    .map { effectiveQuery ->
+        val terms = searchQueryTokens(effectiveQuery).map(String::lowercase)
+        (if (terms.none { it.startsWith("sort:") }) terms + "sort:newest" else terms)
+            .distinct().sorted().joinToString("\u0000")
+    }
+    .distinct().sorted().joinToString("\u0001")
 
 internal fun normalizeSearchSeparators(query: String): String = searchQueryTokens(query).joinToString(" ")
 

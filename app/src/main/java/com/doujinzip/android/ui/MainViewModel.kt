@@ -78,6 +78,7 @@ import com.doujinzip.android.model.continueLibraryReader
 import com.doujinzip.android.model.openLibraryReader
 import com.doujinzip.android.model.updateLibrarySeries
 import com.doujinzip.android.model.renameSeriesPages
+import com.doujinzip.android.model.selectSearchTab
 import com.doujinzip.android.model.selectTab
 import com.doujinzip.android.model.searchResultSessionIds
 import com.doujinzip.android.model.updateLibraryScroll
@@ -2949,7 +2950,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         browserPreferenceStore.savePreferredLanguages(preferredLanguages)
         val originIsGallery = navigationPage is BrowserPage.LibraryHome || navigationPage is BrowserPage.LibrarySeries || navigationPage is BrowserPage.LibraryBook || navigationPage is BrowserPage.LibraryReader
         val origin = if (originIsGallery) uiState.galleryWorkspace else uiState.browserWorkspace
-        val opened = uiState.browserWorkspace.openTab(BrowserPage.Search(query = query, preferredLanguages = preferredLanguages))
+        val current = uiState.browserWorkspace
+        val existing = current.selectSearchTab(query, preferredLanguages)
+        if (existing != null) {
+            val page = existing.activeTab.currentPage as BrowserPage.Search
+            applyBrowserWorkspace(existing, reload = true)
+            if (page.currentPage == 0) startBrowserSearch(reset = true)
+            return
+        }
+        val opened = current.openTab(BrowserPage.Search(query = query, preferredLanguages = preferredLanguages))
         val workspace = rememberNewTab(opened, opened.activeTabId, false, origin.activeTabId, originIsGallery)
         applyBrowserWorkspace(workspace)
         startBrowserSearch(reset = true)

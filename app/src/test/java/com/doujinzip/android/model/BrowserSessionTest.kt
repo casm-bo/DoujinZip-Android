@@ -232,6 +232,21 @@ class BrowserSessionTest {
     }
 
     @Test
+    fun searchReusesGroupedAndArchivedTabsWithEquivalentConditions() {
+        val first = BrowserWorkspace.initial(BrowserPage.Search(query = "tag:sample language:korean"))
+        val group = BrowserTabGroup(name = "Saved")
+        val grouped = first.copy(groups = listOf(group), tabs = listOf(first.activeTab.copy(groupId = group.id)))
+            .openTab(BrowserPage.Search(query = "tag:other"))
+
+        for (workspace in listOf(grouped, grouped.archiveGroup(group.id))) {
+            val selected = workspace.selectSearchTab("sort:newest tag:sample", setOf("korean"))
+            assertEquals(first.activeTabId, selected?.activeTabId)
+            assertEquals(group.id, selected?.activeTab?.groupId)
+            assertEquals(2, selected?.tabs?.size)
+        }
+    }
+
+    @Test
     fun missingSearchCreatesStandaloneTabWithoutBackHistory() {
         val workspace = BrowserWorkspace.initial(BrowserPage.Search(query = "tag:first"))
         val query = "tag:second"
