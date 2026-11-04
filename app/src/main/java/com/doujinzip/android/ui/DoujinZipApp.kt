@@ -699,7 +699,7 @@ private fun MainShell(
     }
     val topBar: @Composable () -> Unit = {
         Column {
-            if (selected != MainDestination.Browser && selected != MainDestination.Library) {
+            if (selected != MainDestination.Browser && selected != MainDestination.Library && selected != MainDestination.History) {
                 TopAppBar(title = { Text(strings[selected.labelResource]) }, actions = {
                     if (selected == MainDestination.Downloads) TextButton(
                         onClick = viewModel::syncDownloadRequests,
