@@ -241,8 +241,12 @@ class CompanionClient {
                     val sourcePath = item.nullableString("libraryPath")
                         ?: item.nullableString("library_path")
                         ?: "데스크톱 라이브러리"
-                    val coverUrl = absoluteUrl(profile.baseUrl, item.nullableString("coverUrl"))
-                        ?: "${profile.baseUrl}/v1/library/books/$id/cover"
+                    val modifiedAt = item.optLong("modifiedAt", 0L)
+                    val bookUrl = "${profile.baseUrl}/v1/library/books/$id"
+                    val firstPageUrl = if (pageCount > 0) "$bookUrl/pages/0?v=$modifiedAt" else null
+                    val coverUrl = firstPageUrl
+                        ?: absoluteUrl(profile.baseUrl, item.nullableString("coverUrl"))
+                        ?: "$bookUrl/cover"
                     collected.add(
                         LibraryBook(
                             id = syncId?.let { "desktop:${profile.id}:${it.lowercase()}" }
@@ -252,9 +256,9 @@ class CompanionClient {
                             locationName = sourcePath.substringAfterLast('\\').substringAfterLast('/'),
                             folderUri = item.nullableString("path").orEmpty(),
                             pages = List(pageCount) { page ->
-                                LibraryPage(uri = if (page == 0) coverUrl else "", name = "${page + 1}")
+                                LibraryPage(uri = if (page == 0) firstPageUrl.orEmpty() else "", name = "${page + 1}")
                             },
-                            modifiedAt = item.optLong("modifiedAt", 0L),
+                            modifiedAt = modifiedAt,
                             metadata = LibraryMetadata(
                                 hitomiId = item.nullableString("hitomiId") ?: item.nullableString("hitomi_id"),
                                 publishedDate = item.nullableString("publishedDate"),

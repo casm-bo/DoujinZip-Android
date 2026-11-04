@@ -4362,7 +4362,7 @@ internal fun LibraryBook.withPreservedReaderPages(previous: LibraryBook?): Libra
     if (!unchanged) return this
     return copy(
         pages = previous.pages,
-        coverUriOverride = previous.coverUriOverride ?: coverUriOverride,
+        coverUriOverride = coverUri.takeIf(String::isNotBlank),
     )
 }
 

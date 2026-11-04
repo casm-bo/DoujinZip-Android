@@ -12,6 +12,27 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PresentationApiTest {
+    @Test fun defaultDesktopCoverUsesTheFirstReadablePage() = runBlocking {
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/v1/library/books") { exchange ->
+            val output = """{"success":true,"data":[{"id":42,"pageCount":2,"modifiedAt":100,"coverUrl":"/v1/library/books/42/cover"},{"id":43,"pageCount":0,"coverUrl":"/v1/library/books/43/cover"}]}""".toByteArray()
+            exchange.sendResponseHeaders(200, output.size.toLong())
+            exchange.responseBody.use { it.write(output) }
+        }
+        server.start()
+        try {
+            val baseUrl = "http://127.0.0.1:${server.address.port}"
+            val (readable, coverOnly) = CompanionClient().getLibraryBooks(DesktopProfile("fixture", "Fixture", baseUrl, "fixture-token"))
+            assertEquals("$baseUrl/v1/library/books/42/pages/0?v=100", readable.coverUri)
+            assertEquals(readable.coverUri, readable.pages.first().uri)
+            assertEquals("$baseUrl/v1/library/books/43/cover", coverOnly.coverUri)
+            val custom = GalleryPresentation("sync:fixture", "Fixture", LibraryMetadata())
+            assertEquals("file:///fixture-custom-cover", readable.withPresentation(custom, "file:///fixture-custom-cover").coverUri)
+        } finally {
+            server.stop(0)
+        }
+    }
+
     @Test fun `metadata retries retain ID and version and binary covers use authentication`() = runBlocking {
         val value = GalleryPresentation("hitomi:42", "Edited", LibraryMetadata(tags = emptyList()), version = 3)
         val edits = mutableListOf<JSONObject>()

@@ -48,7 +48,9 @@ class ActiveLibraryBookRefreshTest {
             ),
         )
 
-        assertEquals(prepared.pages, refreshed.withPreservedReaderPages(prepared).pages)
+        val result = refreshed.withPreservedReaderPages(prepared.copy(coverUriOverride = "http://desktop/stale-cover"))
+        assertEquals(prepared.pages, result.pages)
+        assertEquals(refreshed.coverUri, result.coverUri)
     }
 
     @Test
