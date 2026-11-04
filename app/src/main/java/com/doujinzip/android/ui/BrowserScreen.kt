@@ -436,7 +436,7 @@ fun BrowserScreen(
             }
             items(count = resultIds.size, key = { "gallery:${resultIds[it]}" }, contentType = { "gallery" }) { index ->
                 val id = resultIds[index]
-                val gallery = galleriesById[id]
+                val gallery = state.galleryCache[id] ?: galleriesById[id]
                 if ("online:$id" in state.libraryHiddenIds) {
                     TextButton(onClick = { onUnhideGallery(id) }) { Text("#$id · ${strings[R.string.ui_unhide]}") }
                 } else if (gallery == null) {
@@ -529,8 +529,10 @@ internal fun GalleryCard(
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     val context = LocalContext.current
-    val request = remember(context, gallery.thumbnailUrl, gallery.id) {
-        gallery.thumbnailUrl?.let { hitomiImageRequest(context, it, gallery.id, crossfade = false, preview = true) }
+    val libraryCover = libraryBook?.coverUri?.takeIf(String::isNotBlank)
+    val request = remember(context, libraryCover, libraryBook?.cloudToken, gallery.thumbnailUrl, gallery.id) {
+        libraryCover?.let { libraryImageRequest(context, it, libraryBook.cloudToken) }
+            ?: gallery.thumbnailUrl?.let { hitomiImageRequest(context, it, gallery.id, crossfade = false, preview = true) }
     }
     WorkCard(
         title = preferredLocalizedTitle(gallery.title),

@@ -59,6 +59,7 @@ data class GallerySummary(
     val groups: List<String> = emptyList(),
     val characters: List<String> = emptyList(),
     val webtoon: Boolean? = null,
+    val sourceThumbnailUrl: String? = thumbnailUrl,
 )
 
 enum class DownloadStatus {

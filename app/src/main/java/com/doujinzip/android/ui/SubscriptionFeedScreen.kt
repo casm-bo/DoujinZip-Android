@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.doujinzip.android.R
 import com.doujinzip.android.model.GallerySummary
+import com.doujinzip.android.model.withPresentation
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
@@ -33,7 +34,7 @@ internal fun SubscriptionFeedScreen(
     val selected=subscriptions.filter { it.id !in excluded }
     val signature=scopeKey+selected.flatMap { it.queries }.distinct().sorted().toString()+state.searchTagFilters.sortedBy { it.name }+state.customBlockedTags.sorted()+oldest
     val session=remember(signature) { java.security.MessageDigest.getInstance("SHA-256").digest(signature.toByteArray()).joinToString("") { "%02x".format(it) } }
-    val cache=remember { com.doujinzip.android.data.SearchResultCache(java.io.File(context.filesDir,"subscription-feed")) }
+    val cache=remember { com.doujinzip.android.data.SearchResultCache(java.io.File(context.filesDir,"subscription-feed-v2")) }
     val listState=rememberLazyGridState()
     var restored by remember(session) { mutableStateOf(false) }
     LaunchedEffect(session,restored) {
@@ -60,7 +61,7 @@ internal fun SubscriptionFeedScreen(
         try {
             val page=ids.drop(galleries.size).take(25)
             for(id in page) {
-                val gallery=state.galleryCache[id] ?: loadGallery(id)
+                val gallery=loadGallery(id)
                 onLoaded(gallery)
                 galleries=galleries+gallery
             }
@@ -105,7 +106,7 @@ internal fun SubscriptionFeedScreen(
             }
             val anchor=galleries.getOrNull(listState.firstVisibleItemIndex)?.id
             val offset=listState.firstVisibleItemScrollOffset
-            val previous=(state.galleryCache.values+galleries).associateBy { it.id }
+            val previous=galleries.associateBy { it.id }
             val count=maxOf(galleries.size,25,fresh.indexOf(anchor)+1)
             val refreshed=mutableListOf<GallerySummary>()
             for(id in fresh.take(count)) refreshed+=previous[id] ?: loadGallery(id).also(onLoaded)
@@ -158,13 +159,17 @@ internal fun SubscriptionFeedScreen(
         LazyVerticalGrid(GridCells.Fixed(if(grid) columns else 1),state=listState,modifier=Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),
             verticalArrangement=Arrangement.spacedBy(12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
             items(galleries,key={it.id}) { item ->
-                val gallery=state.galleryCache[item.id] ?: item
+                val presentation = state.presentations["hitomi:${item.id}"]?.value
+                val gallery = state.galleryCache[item.id] ?: item.withPresentation(presentation, presentationCoverUri(context, presentation))
+                fun rememberGallery() {
+                    if (item.id !in state.galleryCache) onLoaded(item)
+                }
                 val book=books[gallery.id]
                 if(book?.id !in state.libraryHiddenIds && "online:${gallery.id}" !in state.libraryHiddenIds) GalleryCard(gallery,grid,
                     read=gallery.id in state.viewedGalleryIds || book?.id in state.libraryReadIds || "online:${gallery.id}" in state.libraryReadIds,
                     libraryBook=book,favorite=book?.id in state.libraryFavoriteIds || "online:${gallery.id}" in state.libraryFavoriteIds,
-                    onToggleFavorite={onLoaded(gallery); onFavorite("online:${gallery.id}")},onClick={onLoaded(gallery); onOpen(gallery.id)},
-                    onLongClick={onLoaded(gallery); onLongClick(gallery.id)},onSearchFacet=onFacet)
+                    onToggleFavorite={rememberGallery(); onFavorite("online:${gallery.id}")},onClick={rememberGallery(); onOpen(gallery.id)},
+                    onLongClick={rememberGallery(); onLongClick(gallery.id)},onSearchFacet=onFacet)
             }
             if(indexReady && galleries.size<ids.size && error==null) item(key = "feed-page-loader", span = { GridItemSpan(maxLineSpan) }) {
                 val loaderVisible by remember { derivedStateOf { listState.layoutInfo.visibleItemsInfo.any { it.key == "feed-page-loader" } } }
