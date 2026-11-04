@@ -95,83 +95,86 @@ fun GalleryDetailScreen(
         val previewPages = state.readerPagesByGalleryId[gallery.id].orEmpty()
 
         val gridState = previewGridState(pageKey, initialPreviewPosition, previewPages.size, onPreviewPositionChange)
-        LazyVerticalGrid(
-            state = gridState,
-            columns = GridCells.Fixed(3),
-            modifier = Modifier.fillMaxSize().padding(scaffoldPadding),
-            contentPadding = PaddingValues(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    DetailHeader(preferredLocalizedTitle(gallery.title), gallery.presentation().metadata,
-                        gallery.thumbnailUrl?.let { hitomiImageRequest(context, it, gallery.id, crossfade = false) },
-                        gallery.pageCount, onSearchFacet = onSearchFacet, onSearchLanguage = onSearchLanguage, options = options, webtoon = webtoon)
-                    val pendingRequest = state.downloadRequests.any { it.galleryId == gallery.id && !it.isFinished }
-                    val queuedDownload = state.downloadQueue.firstOrNull {
-                        it.galleryId == gallery.id
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Button(onClick = { onOpenReader(0) }, modifier = Modifier.weight(1f)) {
-                            Text(strings[R.string.ui_read_fullscreen])
+        Box(Modifier.fillMaxSize().padding(scaffoldPadding)) {
+            LazyVerticalGrid(
+                state = gridState,
+                columns = GridCells.Fixed(3),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        DetailHeader(preferredLocalizedTitle(gallery.title), gallery.presentation().metadata,
+                            gallery.thumbnailUrl?.let { hitomiImageRequest(context, it, gallery.id, crossfade = false) },
+                            gallery.pageCount, onSearchFacet = onSearchFacet, onSearchLanguage = onSearchLanguage, options = options, webtoon = webtoon)
+                        val pendingRequest = state.downloadRequests.any { it.galleryId == gallery.id && !it.isFinished }
+                        val queuedDownload = state.downloadQueue.firstOrNull {
+                            it.galleryId == gallery.id
                         }
-                        OutlinedButton(
-                            onClick = { onDownload(gallery) },
-                            enabled = gallery.id !in state.downloadingGalleryIds && queuedDownload == null && !pendingRequest,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(
-                                when {
-                                    gallery.id in state.downloadingGalleryIds -> strings[R.string.ui_requesting]
-                                    pendingRequest -> strings[R.string.ui_already_in_downloads]
-                                    queuedDownload != null -> strings[R.string.ui_already_in_download_queue]
-                                    else -> strings[R.string.ui_download]
-                                },
-                            )
-                        }
-                    }
-                    Text(strings[R.string.ui_gallery_preview], style = MaterialTheme.typography.titleMedium)
-                    when {
-                        gallery.id in state.readerLoadingGalleryIds -> {
-                            Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator()
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Button(onClick = { onOpenReader(0) }, modifier = Modifier.weight(1f)) {
+                                Text(strings[R.string.ui_read_fullscreen])
+                            }
+                            OutlinedButton(
+                                onClick = { onDownload(gallery) },
+                                enabled = gallery.id !in state.downloadingGalleryIds && queuedDownload == null && !pendingRequest,
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text(
+                                    when {
+                                        gallery.id in state.downloadingGalleryIds -> strings[R.string.ui_requesting]
+                                        pendingRequest -> strings[R.string.ui_already_in_downloads]
+                                        queuedDownload != null -> strings[R.string.ui_already_in_download_queue]
+                                        else -> strings[R.string.ui_download]
+                                    },
+                                )
                             }
                         }
-                        state.readerErrorsByGalleryId[gallery.id] != null -> {
-                            Text(state.readerErrorsByGalleryId.getValue(gallery.id), color = MaterialTheme.colorScheme.error)
-                        }
-                        previewPages.isEmpty() -> {
-                            Text(strings[R.string.ui_no_preview_images])
+                        Text(strings[R.string.ui_gallery_preview], style = MaterialTheme.typography.titleMedium)
+                        when {
+                            gallery.id in state.readerLoadingGalleryIds -> {
+                                Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator()
+                                }
+                            }
+                            state.readerErrorsByGalleryId[gallery.id] != null -> {
+                                Text(state.readerErrorsByGalleryId.getValue(gallery.id), color = MaterialTheme.colorScheme.error)
+                            }
+                            previewPages.isEmpty() -> {
+                                Text(strings[R.string.ui_no_preview_images])
+                            }
                         }
                     }
                 }
-            }
-            itemsIndexed(previewPages, key = { index, url -> "$index-$url" }) { index, url ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(160.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable { onPreviewPositionChange(ReaderPosition(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)); onOpenReader(index) }
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("${index + 1}", style = MaterialTheme.typography.labelSmall)
-                    DetailImage(
-                        model = hitomiImageRequest(
-                            context = context,
-                            url = url,
-                            galleryId = gallery.id,
-                            crossfade = false,
-                            preview = true,
-                        ),
-                        contentDescription = strings[R.string.ui_page_preview, (index + 1)],
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                    )
+                itemsIndexed(previewPages, key = { index, url -> "$index-$url" }) { index, url ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(160.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { onPreviewPositionChange(ReaderPosition(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)); onOpenReader(index) }
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("${index + 1}", style = MaterialTheme.typography.labelSmall)
+                        DetailImage(
+                            model = hitomiImageRequest(
+                                context = context,
+                                url = url,
+                                galleryId = gallery.id,
+                                crossfade = false,
+                                preview = true,
+                            ),
+                            contentDescription = strings[R.string.ui_page_preview, (index + 1)],
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                        )
+                    }
                 }
             }
+            DynamicVerticalScrollbar(gridState)
         }
     }
 }

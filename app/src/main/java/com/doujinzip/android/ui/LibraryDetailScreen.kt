@@ -89,98 +89,101 @@ fun LibraryDetailScreen(
         val metadata = book.metadata
         val context = LocalContext.current
         val gridState = previewGridState(pageKey, initialPreviewPosition, book.pages.size, onPreviewPositionChange)
-        LazyVerticalGrid(
-            state = gridState,
-            columns = GridCells.Fixed(3),
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    DetailHeader(book.title, metadata,
-                        book.coverUri.takeIf { it.isNotBlank() }?.let { libraryImageRequest(context, it, book.cloudToken) },
-                        book.pages.size, onSearchFacet = onSearchFacet, onSearchLanguage = onSearchLanguage, options = options, webtoon = webtoon)
-                    val readerEnabled = !isLoading && book.pages.all { it.uri.isNotBlank() }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Button(
-                            onClick = { onOpenReader(0) },
-                            enabled = readerEnabled,
-                            modifier = Modifier.weight(1f),
-                        ) { Text(if (isLoading) strings[R.string.ui_loading] else strings[R.string.ui_read_from_beginning]) }
-                        Button(
-                            onClick = { onOpenReader(progress.coerceAtLeast(0)) },
-                            enabled = readerEnabled && progress > 0,
-                            modifier = Modifier.weight(1f),
-                        ) { Text(strings[R.string.ui_continue_reading]) }
-                    }
-                    if (isSeriesBook) {
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            LazyVerticalGrid(
+                state = gridState,
+                columns = GridCells.Fixed(3),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        DetailHeader(book.title, metadata,
+                            book.coverUri.takeIf { it.isNotBlank() }?.let { libraryImageRequest(context, it, book.cloudToken) },
+                            book.pages.size, onSearchFacet = onSearchFacet, onSearchLanguage = onSearchLanguage, options = options, webtoon = webtoon)
+                        val readerEnabled = !isLoading && book.pages.all { it.uri.isNotBlank() }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(0.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Button(
-                                onClick = onOpenPreviousBook,
-                                enabled = previousBook != null,
-                                modifier = Modifier.weight(3f),
-                                shape = RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp),
-                                contentPadding = PaddingValues(horizontal = 4.dp),
-                            ) {
-                                DetailChevronIcon(pointsRight = false)
-                                Text(strings[R.string.ui_previous_chapter], modifier = Modifier.padding(start = 5.dp), maxLines = 1)
-                            }
+                                onClick = { onOpenReader(0) },
+                                enabled = readerEnabled,
+                                modifier = Modifier.weight(1f),
+                            ) { Text(if (isLoading) strings[R.string.ui_loading] else strings[R.string.ui_read_from_beginning]) }
                             Button(
-                                onClick = onOpenSeriesList,
-                                modifier = Modifier.weight(4f),
-                                shape = RoundedCornerShape(0.dp),
-                                contentPadding = PaddingValues(horizontal = 6.dp),
+                                onClick = { onOpenReader(progress.coerceAtLeast(0)) },
+                                enabled = readerEnabled && progress > 0,
+                                modifier = Modifier.weight(1f),
+                            ) { Text(strings[R.string.ui_continue_reading]) }
+                        }
+                        if (isSeriesBook) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(0.dp),
                             ) {
-                                DetailListIcon()
-                                Text(strings[R.string.ui_list], modifier = Modifier.padding(start = 6.dp), maxLines = 1)
-                            }
-                            Button(
-                                onClick = onOpenNextBook,
-                                enabled = nextBook != null,
-                                modifier = Modifier.weight(3f),
-                                shape = RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp),
-                                contentPadding = PaddingValues(horizontal = 4.dp),
-                            ) {
-                                Text(strings[R.string.ui_next_chapter], modifier = Modifier.padding(end = 5.dp), maxLines = 1)
-                                DetailChevronIcon(pointsRight = true)
+                                Button(
+                                    onClick = onOpenPreviousBook,
+                                    enabled = previousBook != null,
+                                    modifier = Modifier.weight(3f),
+                                    shape = RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp),
+                                    contentPadding = PaddingValues(horizontal = 4.dp),
+                                ) {
+                                    DetailChevronIcon(pointsRight = false)
+                                    Text(strings[R.string.ui_previous_chapter], modifier = Modifier.padding(start = 5.dp), maxLines = 1)
+                                }
+                                Button(
+                                    onClick = onOpenSeriesList,
+                                    modifier = Modifier.weight(4f),
+                                    shape = RoundedCornerShape(0.dp),
+                                    contentPadding = PaddingValues(horizontal = 6.dp),
+                                ) {
+                                    DetailListIcon()
+                                    Text(strings[R.string.ui_list], modifier = Modifier.padding(start = 6.dp), maxLines = 1)
+                                }
+                                Button(
+                                    onClick = onOpenNextBook,
+                                    enabled = nextBook != null,
+                                    modifier = Modifier.weight(3f),
+                                    shape = RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp),
+                                    contentPadding = PaddingValues(horizontal = 4.dp),
+                                ) {
+                                    Text(strings[R.string.ui_next_chapter], modifier = Modifier.padding(end = 5.dp), maxLines = 1)
+                                    DetailChevronIcon(pointsRight = true)
+                                }
                             }
                         }
+                        if (isLoading) {
+                            Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
+                            }
+                        }
+                        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                        Text(strings[R.string.ui_gallery_preview], style = MaterialTheme.typography.titleMedium)
                     }
-                    if (isLoading) {
-                        Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
+                }
+                itemsIndexed(book.pages, key = { index, page -> "$index-${page.name}" }) { index, page ->
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(6.dp))
+                            .clickable(enabled = page.uri.isNotBlank()) { onPreviewPositionChange(ReaderPosition(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)); onOpenReader(index) }
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("${index + 1}", style = MaterialTheme.typography.labelSmall)
+                        if (page.uri.isNotBlank()) {
+                            DetailImage(
+                                model = libraryImageRequest(context, page.uri, book.cloudToken),
+                                contentDescription = strings[R.string.ui_page_preview, (index + 1)],
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                            )
                         }
                     }
-                    error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                    Text(strings[R.string.ui_gallery_preview], style = MaterialTheme.typography.titleMedium)
                 }
             }
-            itemsIndexed(book.pages, key = { index, page -> "$index-${page.name}" }) { index, page ->
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(6.dp))
-                        .clickable(enabled = page.uri.isNotBlank()) { onPreviewPositionChange(ReaderPosition(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)); onOpenReader(index) }
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("${index + 1}", style = MaterialTheme.typography.labelSmall)
-                    if (page.uri.isNotBlank()) {
-                        DetailImage(
-                            model = libraryImageRequest(context, page.uri, book.cloudToken),
-                            contentDescription = strings[R.string.ui_page_preview, (index + 1)],
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop,
-                        )
-                    }
-                }
-            }
+            DynamicVerticalScrollbar(gridState)
         }
     }
 }

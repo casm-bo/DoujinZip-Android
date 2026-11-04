@@ -8,6 +8,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -98,6 +99,7 @@ fun RecentHistoryScreen(
             }
         }
         if (!state.historyRecording) Text(strings[R.string.ui_history_paused_reading_progress_is_still_saved], Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
+        val listState = rememberLazyGridState()
         PullToRefreshBox(isRefreshing = refreshing, onRefresh = {
             if (!refreshing) scope.launch {
                 refreshing = true
@@ -106,12 +108,13 @@ fun RecentHistoryScreen(
         }, modifier = Modifier.weight(1f)) {
             if (entries.isEmpty()) Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
                 Text(if (state.recentHistory.isEmpty()) strings[R.string.ui_galleries_you_open_will_appear_here] else strings[R.string.ui_no_matching_history])
-            } else LazyVerticalGrid(columns = GridCells.Fixed(if (grid) 2 else 1), modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            } else LazyVerticalGrid(state = listState, columns = GridCells.Fixed(if (grid) 2 else 1), modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(entries, key = { it.key }) { entry ->
                     HistoryCard(entry, state, grid, onLoadMetadata, onOpen = { onOpen(entry, it) }, onRemove = { onRemove(entry.key) }, book = bookIndex.find(entry), reloadGeneration = reloadGeneration)
                 }
             }
-    }
+            DynamicVerticalScrollbar(listState)
+        }
     }
     if (clearDialog) AlertDialog(
         onDismissRequest = { clearDialog = false }, title = { Text(strings[R.string.ui_clear_entire_recent_history]) },

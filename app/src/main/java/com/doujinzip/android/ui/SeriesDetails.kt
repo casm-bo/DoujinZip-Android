@@ -62,71 +62,74 @@ internal fun SeriesDetailContent(name: String, books: List<LibraryBook>, state: 
         snapshotFlow { list.isScrollInProgress }.filter { !it }.collect { persistPosition() }
     }
     DisposableEffect(pageKey, list, books.isNotEmpty()) { onDispose { persistPosition() } }
-    LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        item {
-            DetailHeader(presentation.title, metadata, coverUri?.let { libraryImageRequest(context, it, null) } ?: sorted.firstOrNull()?.let { libraryImageRequest(context, it.coverUri, it.cloudToken) },
-                sorted.sumOf { it.pages.size.toLong() }.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), information = strings[R.string.ui_series_episode_count, sorted.size],
-                onSearchFacet = onSearchFacet, onSearchLanguage = onSearchLanguage, webtoon = sorted.any { it.webtoon == true }, options = {
-                    PresentationActions(presentation, record, sources, state.isBusy, state.presentationSyncError,
-                        onSavePresentation, { _, source -> onCover(coverValue, source) }, { onAcceptRemote(key) },
-                            (if (coverRecord?.conflict != null) listOf(
-                                DetailMenuAction("${strings[R.string.ui_cover_from_work]} · ${strings[R.string.ui_keep_phone_edit]}", ActionSymbol.EDIT) { onSavePresentation(coverRecord.value, true) },
-                                DetailMenuAction("${strings[R.string.ui_cover_from_work]} · ${strings[R.string.ui_use_pc_edit]}", ActionSymbol.PC) { onAcceptRemote(coverKey) }) else emptyList()) +
-                            listOf(DetailMenuAction(strings[R.string.ui_series_options_edit], ActionSymbol.SORT, onEdit),
-                                DetailMenuAction(strings[R.string.ui_rename_series], ActionSymbol.EDIT, onRename),
-                                DetailMenuAction(strings[if (favorite) R.string.ui_remove_favorite else R.string.ui_add_favorite], ActionSymbol.STAR, onFavorite),
-                                DetailMenuAction(strings[if (read) R.string.ui_mark_unread else R.string.ui_mark_read], ActionSymbol.READ) { if (read) onUnread(ids) else onRead(ids) },
-                                DetailMenuAction(strings[if (hidden) R.string.ui_unhide else R.string.ui_hide], ActionSymbol.HIDE) { onHidden(ids, !hidden) },
-                                DetailMenuAction(strings[R.string.ui_delete_series], ActionSymbol.DELETE) { delete = true }),
-                        coverFromWorks = true, sourceLabels = coverBooks.map { it.title }, metadataSeed = if (metadataRecord == null) aggregate else null)
-                })
-        }
-        item {
-            val lastRead = state.recentHistory.firstNotNullOfOrNull { entry -> entry.page?.let { page ->
-                entry.findBook(sorted)?.let { it to page }
-            } } ?: sorted.firstOrNull { (state.libraryProgress[it.id] ?: 0) > 0 }?.let { it to state.libraryProgress.getValue(it.id) }
-            lastRead?.let { (book, page) ->
-                Button(onClick = { onReadBook(book.id, page.coerceIn(0, (book.pages.size - 1).coerceAtLeast(0))) }, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-                    ActionIcon(ActionSymbol.PLAY); Text(strings[R.string.ui_continue_reading], Modifier.padding(start = 6.dp))
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            item {
+                DetailHeader(presentation.title, metadata, coverUri?.let { libraryImageRequest(context, it, null) } ?: sorted.firstOrNull()?.let { libraryImageRequest(context, it.coverUri, it.cloudToken) },
+                    sorted.sumOf { it.pages.size.toLong() }.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), information = strings[R.string.ui_series_episode_count, sorted.size],
+                    onSearchFacet = onSearchFacet, onSearchLanguage = onSearchLanguage, webtoon = sorted.any { it.webtoon == true }, options = {
+                        PresentationActions(presentation, record, sources, state.isBusy, state.presentationSyncError,
+                            onSavePresentation, { _, source -> onCover(coverValue, source) }, { onAcceptRemote(key) },
+                                (if (coverRecord?.conflict != null) listOf(
+                                    DetailMenuAction("${strings[R.string.ui_cover_from_work]} · ${strings[R.string.ui_keep_phone_edit]}", ActionSymbol.EDIT) { onSavePresentation(coverRecord.value, true) },
+                                    DetailMenuAction("${strings[R.string.ui_cover_from_work]} · ${strings[R.string.ui_use_pc_edit]}", ActionSymbol.PC) { onAcceptRemote(coverKey) }) else emptyList()) +
+                                listOf(DetailMenuAction(strings[R.string.ui_series_options_edit], ActionSymbol.SORT, onEdit),
+                                    DetailMenuAction(strings[R.string.ui_rename_series], ActionSymbol.EDIT, onRename),
+                                    DetailMenuAction(strings[if (favorite) R.string.ui_remove_favorite else R.string.ui_add_favorite], ActionSymbol.STAR, onFavorite),
+                                    DetailMenuAction(strings[if (read) R.string.ui_mark_unread else R.string.ui_mark_read], ActionSymbol.READ) { if (read) onUnread(ids) else onRead(ids) },
+                                    DetailMenuAction(strings[if (hidden) R.string.ui_unhide else R.string.ui_hide], ActionSymbol.HIDE) { onHidden(ids, !hidden) },
+                                    DetailMenuAction(strings[R.string.ui_delete_series], ActionSymbol.DELETE) { delete = true }),
+                            coverFromWorks = true, sourceLabels = coverBooks.map { it.title }, metadataSeed = if (metadataRecord == null) aggregate else null)
+                    })
+            }
+            item {
+                val lastRead = state.recentHistory.firstNotNullOfOrNull { entry -> entry.page?.let { page ->
+                    entry.findBook(sorted)?.let { it to page }
+                } } ?: sorted.firstOrNull { (state.libraryProgress[it.id] ?: 0) > 0 }?.let { it to state.libraryProgress.getValue(it.id) }
+                lastRead?.let { (book, page) ->
+                    Button(onClick = { onReadBook(book.id, page.coerceIn(0, (book.pages.size - 1).coerceAtLeast(0))) }, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                        ActionIcon(ActionSymbol.PLAY); Text(strings[R.string.ui_continue_reading], Modifier.padding(start = 6.dp))
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { sorted.firstOrNull()?.let { onReadBook(it.id, 0) } }, enabled = sorted.isNotEmpty(), modifier = Modifier.weight(1f)) { Text(strings[R.string.ui_read_from_beginning]) }
+                    OutlinedButton(onClick = onList, modifier = Modifier.weight(1f)) { ActionIcon(ActionSymbol.LIST); Text(strings[R.string.ui_list], Modifier.padding(start = 6.dp)) }
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { sorted.firstOrNull()?.let { onReadBook(it.id, 0) } }, enabled = sorted.isNotEmpty(), modifier = Modifier.weight(1f)) { Text(strings[R.string.ui_read_from_beginning]) }
-                OutlinedButton(onClick = onList, modifier = Modifier.weight(1f)) { ActionIcon(ActionSymbol.LIST); Text(strings[R.string.ui_list], Modifier.padding(start = 6.dp)) }
-            }
-        }
-        items(sorted.chunked(3), key = { it.first().id }) { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                row.forEach { book -> Column(Modifier.weight(1f).clickable { onOpenBook(book.id) }) {
-                    DetailImage(libraryImageRequest(context, book.coverUri, book.cloudToken), book.title, Modifier.fillMaxWidth().height(150.dp))
-                    Text(book.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium)
-                } }
-                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
-            }
-        }
-        item { Text(strings[R.string.ui_gallery_preview], style = MaterialTheme.typography.titleMedium) }
-        sorted.forEach { book ->
-            item(key = "preview:${book.id}") {
-                LaunchedEffect(book.id) { onLoadPreview(book.id) }
-                Text(book.title, style = MaterialTheme.typography.titleSmall)
-                state.seriesPreviewErrors[book.id]?.let { error ->
-                    Text(error, color = MaterialTheme.colorScheme.error)
-                    TextButton(onClick = { onLoadPreview(book.id) }) { ActionIcon(ActionSymbol.REFRESH); Text(strings[R.string.ui_try_again]) }
-                }
-            }
-            itemsIndexed(book.pages.chunked(3), key = { index, _ -> "preview:${book.id}:$index" }) { rowIndex, row ->
-                LaunchedEffect(book.id) { if (row.any { it.uri.isBlank() }) onLoadPreview(book.id) }
+            items(sorted.chunked(3), key = { it.first().id }) { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    row.forEachIndexed { column, page -> Box(Modifier.weight(1f).height(160.dp).semantics { contentDescription = page.name }.clickable(enabled = page.uri.isNotBlank()) {
-                        onReadBook(book.id, rowIndex * 3 + column)
-                    }, contentAlignment = Alignment.Center) {
-                        if (page.uri.isBlank()) CircularProgressIndicator(Modifier.size(28.dp))
-                        else DetailImage(libraryImageRequest(context, page.uri, book.cloudToken), null, Modifier.fillMaxSize())
+                    row.forEach { book -> Column(Modifier.weight(1f).clickable { onOpenBook(book.id) }) {
+                        DetailImage(libraryImageRequest(context, book.coverUri, book.cloudToken), book.title, Modifier.fillMaxWidth().height(150.dp))
+                        Text(book.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium)
                     } }
                     repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
+            item { Text(strings[R.string.ui_gallery_preview], style = MaterialTheme.typography.titleMedium) }
+            sorted.forEach { book ->
+                item(key = "preview:${book.id}") {
+                    LaunchedEffect(book.id) { onLoadPreview(book.id) }
+                    Text(book.title, style = MaterialTheme.typography.titleSmall)
+                    state.seriesPreviewErrors[book.id]?.let { error ->
+                        Text(error, color = MaterialTheme.colorScheme.error)
+                        TextButton(onClick = { onLoadPreview(book.id) }) { ActionIcon(ActionSymbol.REFRESH); Text(strings[R.string.ui_try_again]) }
+                    }
+                }
+                itemsIndexed(book.pages.chunked(3), key = { index, _ -> "preview:${book.id}:$index" }) { rowIndex, row ->
+                    LaunchedEffect(book.id) { if (row.any { it.uri.isBlank() }) onLoadPreview(book.id) }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        row.forEachIndexed { column, page -> Box(Modifier.weight(1f).height(160.dp).semantics { contentDescription = page.name }.clickable(enabled = page.uri.isNotBlank()) {
+                            onReadBook(book.id, rowIndex * 3 + column)
+                        }, contentAlignment = Alignment.Center) {
+                            if (page.uri.isBlank()) CircularProgressIndicator(Modifier.size(28.dp))
+                            else DetailImage(libraryImageRequest(context, page.uri, book.cloudToken), null, Modifier.fillMaxSize())
+                        } }
+                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
         }
+        DynamicVerticalScrollbar(list)
     }
     if (delete) AlertDialog(onDismissRequest = { delete = false }, title = { Text(strings[R.string.ui_delete_series]) },
         text = { Text(strings[R.string.ui_delete_selected_series_galleries_will_be_kept, 1]) },
