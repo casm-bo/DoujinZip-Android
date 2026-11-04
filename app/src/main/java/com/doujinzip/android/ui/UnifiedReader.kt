@@ -285,7 +285,7 @@ internal fun UnifiedReader(
         }
 
         AnimatedVisibility(
-            visible = thumbnailsVisible,
+            visible = controlsVisible && thumbnailsVisible,
             modifier = Modifier.align(Alignment.BottomCenter),
             enter = slideInVertically(
                 initialOffsetY = { it },
@@ -304,7 +304,7 @@ internal fun UnifiedReader(
             )
         }
 
-        if (!thumbnailsVisible) {
+        if (controlsVisible && !thumbnailsVisible) {
             ReaderBottomSwipeHandle(
                 onSwipeUp = {
                     thumbnailsVisible = true
