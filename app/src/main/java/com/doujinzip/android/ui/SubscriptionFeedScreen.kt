@@ -166,8 +166,14 @@ internal fun SubscriptionFeedScreen(
                     onToggleFavorite={onLoaded(gallery); onFavorite("online:${gallery.id}")},onClick={onLoaded(gallery); onOpen(gallery.id)},
                     onLongClick={onLoaded(gallery); onLongClick(gallery.id)},onSearchFacet=onFacet)
             }
-            if(indexReady && galleries.size<ids.size && error==null) item(span={GridItemSpan(maxLineSpan)}) {
-                TextButton({pageJob=scope.launch { nextPage() }},enabled=!busy,modifier=Modifier.fillMaxWidth()) { Text(strings[R.string.feed_more]) }
+            if(indexReady && galleries.size<ids.size && error==null) item(key = "feed-page-loader", span = { GridItemSpan(maxLineSpan) }) {
+                val loaderVisible by remember { derivedStateOf { listState.layoutInfo.visibleItemsInfo.any { it.key == "feed-page-loader" } } }
+                LaunchedEffect(session, busy, listState.isScrollInProgress, loaderVisible) {
+                    if (!busy && listState.isScrollInProgress && loaderVisible) {
+                        pageJob = scope.launch { nextPage() }
+                    }
+                }
+                Text(strings[R.string.ui_preparing_next_page], Modifier.padding(12.dp))
             }
         }
         DynamicVerticalScrollbar(listState)
