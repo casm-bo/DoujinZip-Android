@@ -65,7 +65,7 @@ internal fun SeriesDetailContent(name: String, books: List<LibraryBook>, state: 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item {
-                DetailHeader(presentation.title, metadata, coverUri?.let { libraryImageRequest(context, it, null) } ?: sorted.firstOrNull()?.let { libraryImageRequest(context, it.coverUri, it.cloudToken) },
+                DetailHeader(presentation.title, metadata, coverUri?.let { libraryImageRequest(context, it, null) } ?: coverBooks.firstOrNull()?.let { libraryImageRequest(context, it.coverUri, it.cloudToken) },
                     sorted.sumOf { it.pages.size.toLong() }.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), information = strings[R.string.ui_series_episode_count, sorted.size],
                     onSearchFacet = onSearchFacet, onSearchLanguage = onSearchLanguage, webtoon = sorted.any { it.webtoon == true }, options = {
                         PresentationActions(presentation, record, sources, state.isBusy, state.presentationSyncError,

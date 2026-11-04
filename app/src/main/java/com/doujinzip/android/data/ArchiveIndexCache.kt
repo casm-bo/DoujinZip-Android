@@ -6,6 +6,8 @@ import java.security.MessageDigest
 import org.json.JSONArray
 import org.json.JSONObject
 
+private const val ARCHIVE_INDEX_VERSION = 2
+
 internal data class ArchiveIndex(val pages: List<String>, val info: ParsedInfoTxt, val cover: String)
 
 internal fun archiveFingerprint(source: String, modifiedAt: Long, size: Long): String =
@@ -20,7 +22,7 @@ internal class ArchiveIndexCache(private val directory: File) {
             val file = File(directory, "${archiveFingerprint(source, modifiedAt, size)}.json")
             if (!file.isFile || file.length() > 4L * 1024 * 1024) return null
             val json = JSONObject(file.readText())
-            require(json.getInt("version") == 1)
+            require(json.getInt("version") == ARCHIVE_INDEX_VERSION)
             val cover = json.getString("cover")
             if (!File(URI(cover)).let { it.isFile && it.length() > 0 }) return null
             val pages = json.getJSONArray("pages")
@@ -39,7 +41,7 @@ internal class ArchiveIndexCache(private val directory: File) {
             val destination = File(directory, "${archiveFingerprint(source, modifiedAt, size)}.json")
             val temporary = File(directory, "${destination.name}.tmp")
             try {
-                temporary.writeText(JSONObject().put("version", 1).put("pages", JSONArray(index.pages)).put("cover", index.cover)
+                temporary.writeText(JSONObject().put("version", ARCHIVE_INDEX_VERSION).put("pages", JSONArray(index.pages)).put("cover", index.cover)
                     .put("title", index.info.title.orEmpty()).put("uuid", index.info.uuid.orEmpty()).put("metadata", index.info.metadata.toJson()).toString())
                 check(temporary.renameTo(destination))
             } finally { temporary.delete() }

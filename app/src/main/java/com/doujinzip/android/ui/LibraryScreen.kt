@@ -1458,7 +1458,7 @@ private fun LibrarySeriesOverview(
                     compareBy<LibraryBook> {
                         customSeries[it.id]?.takeIf { assignment -> assignment.name == seriesName }?.order
                             ?: Int.MAX_VALUE
-                    }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.title },
+                    }.thenBy { it.id },
                 )
         }
         when (sort) {
@@ -1567,7 +1567,7 @@ internal fun SeriesCard(
         footer = strings[R.string.ui_series], grid = !listMode, onClick = onClick, onLongClick = onLongPress, selected = selected,
         webtoon = webtoon,
         border = galleryCardBorder(series = true, favorite = favorite)) {
-        SeriesCover(book = books.firstOrNull(), books = books, context = context, favorite = favorite, read = read,
+        SeriesCover(book = books.firstOrNull { it.coverUri.isNotBlank() }, books = books, context = context, favorite = favorite, read = read,
             onToggleFavorite = onToggleFavorite, selectionMode = selectionMode, selected = selected,
             badgeScale = badgeScale, modifier = Modifier.fillMaxSize(),
             coverUri = presentationCoverUri(context, coverPresentation) ?: presentationCoverUri(context, presentation), title = presentation?.title ?: name)

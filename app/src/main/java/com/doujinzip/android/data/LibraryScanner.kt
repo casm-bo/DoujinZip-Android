@@ -106,8 +106,7 @@ class LibraryScanner(
             relativePath = DocumentsContract.getDocumentId(entry.uri).removePrefix(DocumentsContract.getTreeDocumentId(Uri.parse(location.uri))).trim('/'),
         )
         info = identity.info
-        val sorted = pageEntries.sortedBy(::naturalSortKey)
-        val pages = sorted.mapIndexed { index, name ->
+        val pages = pageEntries.mapIndexed { index, name ->
             LibraryPage(uri = if (index == 0) coverUri else "", name = name, archiveUri = source, archiveEntry = name)
         }
         return LibraryBook(id = LibraryIdentityStore.stableFileId(identity.syncId),
@@ -119,14 +118,12 @@ class LibraryScanner(
     private fun readArchiveIndex(entry: DocumentEntry): ArchiveIndex {
         val pageEntries = mutableListOf<String>()
         var info = ParsedInfoTxt()
-        var coverUri = ""
         contentResolver.openInputStream(entry.uri)?.buffered()?.use { input ->
             ZipInputStream(input).use { zip ->
                 while (true) {
                     val item = zip.nextEntry ?: break
                     if (!item.isDirectory && isSupportedImage("", item.name)) {
                         pageEntries += item.name
-                        if (coverUri.isEmpty()) coverUri = cacheArchiveCover(entry, item.name, zip)
                     } else if (
                         !item.isDirectory &&
                         item.name.substringAfterLast('/').equals("info.txt", true)
@@ -140,16 +137,24 @@ class LibraryScanner(
                 }
             }
         }
-        return ArchiveIndex(pageEntries, info, coverUri)
+        val sorted = pageEntries.sortedBy(::naturalSortKey)
+        val cover = sorted.firstOrNull()?.let { firstPage -> readArchiveCover(entry, firstPage) }.orEmpty()
+        return ArchiveIndex(sorted, info, cover)
     }
 
-    private fun cacheArchiveCover(entry: DocumentEntry, imageName: String, zip: ZipInputStream): String {
+    private fun readArchiveCover(entry: DocumentEntry, imageName: String): String {
         val directory = File(context.cacheDir, "library-covers").apply(File::mkdirs)
-        val file = archiveCacheFile(directory, archiveFingerprint(entry.uri.toString(), entry.modifiedAt, entry.size), imageName)
+        val fingerprint = archiveFingerprint(entry.uri.toString(), entry.modifiedAt, entry.size)
+        val file = archiveCacheFile(directory, "$fingerprint-first-page", imageName)
         if (entry.modifiedAt <= 0 || entry.size <= 0 || !file.isFile || file.length() == 0L) {
             val temporary = File(directory, "${file.name}.tmp")
             try {
-                temporary.outputStream().buffered().use(zip::copyTo)
+                requireNotNull(contentResolver.openInputStream(entry.uri)).buffered().use { input ->
+                    ZipInputStream(input).use { zip ->
+                        check(generateSequence { zip.nextEntry }.any { !it.isDirectory && it.name == imageName })
+                        temporary.outputStream().buffered().use(zip::copyTo)
+                    }
+                }
                 check(temporary.renameTo(file)) { "Cannot cache archive cover" }
             } finally { temporary.delete() }
         }

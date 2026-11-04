@@ -18,6 +18,11 @@ class ArchiveIndexCacheTest {
             assertNull(cache.read("content://archive/1", 10, 101))
             assertNull(cache.read("content://archive/2", 10, 100))
             assertNull(cache.read("content://archive/1", 0, 100))
+            val storedIndex = root.resolve("indexes").listFiles()!!.single()
+            val current = storedIndex.readText()
+            storedIndex.writeText(org.json.JSONObject(current).put("version", 1).toString())
+            assertNull(cache.read("content://archive/1", 10, 100))
+            storedIndex.writeText(current)
             cover.delete()
             assertNull(cache.read("content://archive/1", 10, 100))
         } finally { root.deleteRecursively() }
