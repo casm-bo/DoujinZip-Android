@@ -329,7 +329,7 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
                     onLibraryBookClick = viewModel::openLibraryBookTab,
                     onBackToOrigin = {
                         searchOpenedFromGallery = false
-                        navController.popBackStack()
+                        viewModel.selectGalleryTab(viewModel.uiState.galleryWorkspace.activeTabId)
                     },
                 )
             }
@@ -660,7 +660,9 @@ private fun MainShell(
         onDestinationChanged(selectedRoute)
     }
     val navigate: (MainDestination) -> Unit = { destination ->
-        if (destination != selected) {
+        if (destination == MainDestination.Library && onBackToOrigin != null) {
+            onBackToOrigin()
+        } else if (destination != selected) {
             viewModel.activateMainWorkspace(destination.route)
             selectedRoute = destination.route
         }
