@@ -1931,7 +1931,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     message = if (refreshError == null) {
                         strings[R.string.msg_library_refreshed]
                     } else {
-                        strings[R.string.msg_library_refreshed_but_some_items_could_not_be_loaded]
+                        refreshError
                     },
                     isError = refreshError != null,
                 )
