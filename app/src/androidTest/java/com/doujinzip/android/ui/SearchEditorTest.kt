@@ -70,11 +70,19 @@ class SearchEditorTest {
         compose.setContent { AppTheme { UnifiedSearchField(query, { query = it }, "Paste query", {}, {}) } }
         compose.onNodeWithContentDescription("Paste query").performClick()
         waitForInput()
+        var x = 0f; var y = 0f
         field { view ->
             val clipboard = view.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Synthetic search", "tag:sample"))
-            assertTrue(view.performLongClick())
+            val location = IntArray(2).also { view.getLocationOnScreen(it) }
+            val handle = (view as SearchQueryInput).caretHandlePosition()
+            x = location[0] + handle.x
+            y = location[1] + handle.y
         }
+        val down = SystemClock.uptimeMillis()
+        send(down, MotionEvent.ACTION_DOWN, x, y)
+        SystemClock.sleep(700)
+        send(down, MotionEvent.ACTION_UP, x, y)
         val paste = instrumentation.targetContext.getString(android.R.string.paste)
         instrumentation.waitForIdleSync()
         instrumentation.runOnMainSync {

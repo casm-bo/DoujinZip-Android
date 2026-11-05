@@ -14,6 +14,16 @@ internal class SearchQueryInput(context: Context) : AppCompatEditText(context) {
     private val caretPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private var draggingCaret = false
     private var dragX = 0f
+    private var handleDownX = 0f
+    private var handleDownY = 0f
+    private val handleLongPress = Runnable {
+        if (draggingCaret) {
+            draggingCaret = false
+            removeCallbacks(edgeScroll)
+            parent?.requestDisallowInterceptTouchEvent(false)
+            performLongClick()
+        }
+    }
     private var blink = true
     var caretColor: Int = currentTextColor
         set(value) { field = value; invalidate() }
@@ -67,6 +77,9 @@ internal class SearchQueryInput(context: Context) : AppCompatEditText(context) {
             if (abs(event.x - handle.x) <= 20 * density && abs(event.y - handle.y) <= 18 * density) {
                 draggingCaret = true
                 dragX = event.x
+                handleDownX = event.x
+                handleDownY = event.y
+                postDelayed(handleLongPress, android.view.ViewConfiguration.getLongPressTimeout().toLong())
                 parent?.requestDisallowInterceptTouchEvent(true)
                 removeCallbacks(edgeScroll)
                 postOnAnimation(edgeScroll)
@@ -76,6 +89,8 @@ internal class SearchQueryInput(context: Context) : AppCompatEditText(context) {
         if (!draggingCaret) return super.onTouchEvent(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_MOVE -> {
+                val slop = android.view.ViewConfiguration.get(context).scaledTouchSlop
+                if (abs(event.x - handleDownX) > slop || abs(event.y - handleDownY) > slop) removeCallbacks(handleLongPress)
                 dragX = event.x
                 moveCaretToDrag()
                 removeCallbacks(edgeScroll)
@@ -83,6 +98,7 @@ internal class SearchQueryInput(context: Context) : AppCompatEditText(context) {
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 draggingCaret = false
+                removeCallbacks(handleLongPress)
                 removeCallbacks(edgeScroll)
                 parent?.requestDisallowInterceptTouchEvent(false)
                 if (event.actionMasked == MotionEvent.ACTION_UP) performClick()
@@ -95,10 +111,10 @@ internal class SearchQueryInput(context: Context) : AppCompatEditText(context) {
 
     override fun performLongClick(): Boolean {
         val platformHandled = super.performLongClick()
-        if (selectionStart >= 0 && selectionEnd > selectionStart) return platformHandled
+        if (platformHandled && selectionStart >= 0 && selectionEnd != selectionStart) return true
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
         val popup = android.widget.PopupMenu(context, this)
-        val selected = selectionStart >= 0 && selectionEnd > selectionStart
+        val selected = selectionStart >= 0 && selectionEnd != selectionStart
         if (selected) {
             popup.menu.add(0, android.R.id.copy, 0, android.R.string.copy)
             popup.menu.add(0, android.R.id.cut, 1, android.R.string.cut)
@@ -124,7 +140,7 @@ internal class SearchQueryInput(context: Context) : AppCompatEditText(context) {
         super.onFocusChanged(focused, direction, previouslyFocusedRect)
         if (!isAttachedToWindow) return
         if (focused) { blink = true; postDelayed(cursorBlink, 500) }
-        else { removeCallbacks(cursorBlink); removeCallbacks(edgeScroll); draggingCaret = false }
+        else { removeCallbacks(cursorBlink); removeCallbacks(edgeScroll); removeCallbacks(handleLongPress); draggingCaret = false }
         invalidate()
     }
 
@@ -154,6 +170,7 @@ internal class SearchQueryInput(context: Context) : AppCompatEditText(context) {
     }
 
     override fun onDetachedFromWindow() {
+        removeCallbacks(handleLongPress)
         removeCallbacks(edgeScroll)
         removeCallbacks(cursorBlink)
         draggingCaret = false
