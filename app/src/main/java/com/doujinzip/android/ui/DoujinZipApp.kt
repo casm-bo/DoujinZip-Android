@@ -1047,6 +1047,7 @@ private fun LibraryTabContent(
                 onLoadSeriesPreview = viewModel::loadSeriesBookPreview,
                 onSaveSeriesPresentation = viewModel::saveGalleryPresentation,
                 onSeriesCover = viewModel::changePresentationCover,
+                onResetSeriesCover = viewModel::resetPresentationCover,
                 onAcceptRemoteSeriesPresentation = viewModel::acceptRemotePresentation,
                 onSelectSuggestion = viewModel::selectLibrarySuggestion,
                 onReadBook = viewModel::openLibraryReaderTab,

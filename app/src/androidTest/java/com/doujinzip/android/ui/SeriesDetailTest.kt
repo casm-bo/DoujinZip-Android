@@ -24,7 +24,7 @@ class SeriesDetailTest {
         val books = listOf("First", "Second").map { LibraryBook(it, it, locationUri = "", locationName = "", folderUri = "",
             pages = listOf(LibraryPage("file:///fixture-$it.png", "1")), modifiedAt = 1,
             metadata = LibraryMetadata(artists = listOf("Original artist"), tags = listOf("Episode tag"))) }
-        var state by mutableStateOf(MainUiState())
+        var state by mutableStateOf(MainUiState(desktopLibraryReady = true, ))
         var selected: ReaderImageSource? = null
         var saved: GalleryPresentation? = null
         val registry = object : androidx.activity.result.ActivityResultRegistry() {
@@ -77,7 +77,7 @@ class SeriesDetailTest {
         var books by mutableStateOf(listOf(book))
         val value = GalleryPresentation(seriesCoverPresentationKey("Group"), "Group", LibraryMetadata(), coverHash = "a".repeat(64))
         compose.setContent { DoujinZipTheme { SeriesDetailContent("Group", books,
-            MainUiState(presentations = mapOf(value.key to com.doujinzip.android.data.PresentationRecord(value))),
+            MainUiState(desktopLibraryReady = true, presentations = mapOf(value.key to com.doujinzip.android.data.PresentationRecord(value))),
             {}, {}, {}, { _, _ -> }, {}, {}, {}, {}, { _, _ -> }, {}, {}, {}) } }
         compose.runOnIdle { books = listOf(book.copy(metadata = book.metadata.copy(tags = listOf("Original tag", "Fresh tag")))) }
         compose.onNodeWithText("Fresh tag").assertExists()
@@ -107,7 +107,7 @@ class SeriesDetailTest {
                     nextBookTitle = if (book.id == books.first().id) books.last().title else null,
                     onOpenNextBook = { workspace = workspace.continueLibraryReader(BrowserPage.LibraryReader(books.last().id, books.last().title, 0)) },
                     onPreferencesChange = {})
-            } else SeriesDetailContent("Navigation series", books, MainUiState(), {}, {}, {},
+            } else SeriesDetailContent("Navigation series", books, MainUiState(desktopLibraryReady = true, ), {}, {}, {},
                 { id, page -> workspace = workspace.openLibraryReader(BrowserPage.LibraryReader(id, books.first { it.id == id }.title, page)) },
                 {}, {}, {}, {}, { _, _ -> }, {}, {}, {})
         } }
@@ -133,7 +133,7 @@ class SeriesDetailTest {
         val books = listOf("First", "Second").map { name -> LibraryBook(name, name, locationUri = "", locationName = "", folderUri = "",
             pages = List(4) { LibraryPage("file:///fixture-$name-$it.png", "$name-page-$it") }, modifiedAt = 1) }
         var opened: Pair<String, Int>? = null
-        compose.setContent { DoujinZipTheme { SeriesDetailContent("Fixture series", books, MainUiState(libraryProgress = mapOf("Second" to 2)),
+        compose.setContent { DoujinZipTheme { SeriesDetailContent("Fixture series", books, MainUiState(desktopLibraryReady = true, libraryProgress = mapOf("Second" to 2)),
             {}, {}, {}, { id, page -> opened = id to page }, {}, {}, {}, {}, { _, _ -> }, {}, {}, {}) } }
         compose.onNode(hasScrollAction()).performScrollToNode(hasText(strings.getString(R.string.ui_continue_reading)))
         compose.onNodeWithText(strings.getString(R.string.ui_continue_reading)).performClick()

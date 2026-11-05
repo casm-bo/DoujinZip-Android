@@ -82,7 +82,7 @@ internal data class DetailMenuAction(val label: String, val symbol: ActionSymbol
 internal fun PresentationActions(value: GalleryPresentation, record: PresentationRecord?, sources: List<ReaderImageSource>,
     busy: Boolean, syncError: String?, onSave: (GalleryPresentation, Boolean) -> Unit, onCover: (GalleryPresentation, ReaderImageSource) -> Unit,
     onAcceptRemote: () -> Unit, actions: List<DetailMenuAction>, editable: Boolean = true,
-    coverFromWorks: Boolean = false, sourceLabels: List<String> = emptyList(), metadataSeed: LibraryMetadata? = null) {
+    coverFromWorks: Boolean = false, sourceLabels: List<String> = emptyList(), metadataSeed: LibraryMetadata? = null, onResetCover: (() -> Unit)? = null) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     val context = LocalContext.current
     var menu by remember { mutableStateOf(false) }
@@ -99,6 +99,7 @@ internal fun PresentationActions(value: GalleryPresentation, record: Presentatio
             if (editable) {
             DropdownMenuItem(text = { Text(strings[R.string.ui_edit_metadata]) }, leadingIcon = { ActionIcon(ActionSymbol.EDIT) }, onClick = { menu = false; editor = true })
             DropdownMenuItem(text = { Text(coverLabel) }, leadingIcon = { ActionIcon(ActionSymbol.PAGE) }, enabled = sources.isNotEmpty(), onClick = { menu = false; coverPicker = true })
+            if (onResetCover != null) DropdownMenuItem(text = { Text(strings[R.string.ui_reset_cover]) }, leadingIcon = { ActionIcon(ActionSymbol.REFRESH) }, onClick = { menu = false; onResetCover() })
             DropdownMenuItem(text = { Text(strings[R.string.ui_cover_from_image]) }, leadingIcon = { ActionIcon(ActionSymbol.FOLDER) }, onClick = { menu = false; external.launch(arrayOf("image/*")) })
             if (actions.isNotEmpty()) HorizontalDivider()
             }
@@ -191,13 +192,13 @@ internal fun WorkPresentationActions(viewModel: MainViewModel, value: GalleryPre
         })
         add(DetailMenuAction(strings[if (read) R.string.ui_mark_unread else R.string.ui_mark_read], ActionSymbol.READ) {
             if (read) viewModel.markLibraryBooksUnread(statusIds) else viewModel.markLibraryBooksRead(statusIds)
-            value.metadata.hitomiId?.toLongOrNull()?.let { viewModel.markOnlineRead(it, !read) }
+            if (bookIds.isEmpty()) value.metadata.hitomiId?.toLongOrNull()?.let { viewModel.markOnlineRead(it, !read) }
         })
         add(DetailMenuAction(strings[if (hidden) R.string.ui_unhide else R.string.ui_hide], ActionSymbol.HIDE) { viewModel.setLibraryBooksHidden(statusIds, !hidden) })
         if (bookIds.isNotEmpty()) add(DetailMenuAction(strings[R.string.ui_delete_gallery], ActionSymbol.DELETE) { confirmDelete = true })
     }
     PresentationActions(value, state.presentations[value.key], sources, state.isBusy, state.presentationSyncError,
-        viewModel::saveGalleryPresentation, viewModel::changePresentationCover, { viewModel.acceptRemotePresentation(value.key) }, actions, editable = bookIds.isNotEmpty())
+        viewModel::saveGalleryPresentation, viewModel::changePresentationCover, { viewModel.acceptRemotePresentation(value.key) }, actions, editable = bookIds.isNotEmpty() && state.desktopLibraryReady, onResetCover = { viewModel.resetPresentationCover(value) })
     if (confirmDelete) AlertDialog(onDismissRequest = { confirmDelete = false }, title = { Text(strings[R.string.ui_delete_gallery]) },
         text = { Text(strings[R.string.ui_delete_selected_items_desktop_originals_move_to_trash_and_are, bookIds.size]) },
         confirmButton = { TextButton(onClick = { confirmDelete = false; viewModel.deleteLibraryBooks(bookIds) }) { Text(strings[R.string.ui_delete]) } },

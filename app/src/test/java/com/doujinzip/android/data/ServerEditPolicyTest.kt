@@ -6,6 +6,11 @@ import org.junit.Test
 
 class ServerEditPolicyTest {
     private fun body() = JSONObject("""{"mutations":[{"mutationId":"synthetic-edit","bookSyncId":"synthetic-book","baseVersion":4,"isFavorite":true}]}""")
+    @Test fun resetAcknowledgementMustMatchTheQueuedRequest() {
+        val body = JSONObject("""{"mutationId":"synthetic-reset"}""")
+        assertEquals(listOf("applied"), validateServerEditResponse("reset-cover", body, JSONObject("""{"mutationId":"synthetic-reset","status":"applied"}""")))
+        assertTrue(runCatching { validateServerEditResponse("reset-cover", body, JSONObject("""{"mutationId":"wrong-reset","status":"applied"}""")) }.isFailure)
+    }
     @Test fun acceptsAnExplicitConflictWithoutPretendingItWasApplied() {
         val response = JSONObject("""{"results":[{"mutationId":"synthetic-edit","status":"conflict"}]}""")
         assertEquals(listOf("conflict"), validateServerEditResponse("state", body(), response))

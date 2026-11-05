@@ -677,6 +677,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (profileId == uiState.selectedProfileId) reloadPresentations()
         } }
     }
+    fun resetPresentationCover(value: GalleryPresentation) {
+        if (requireDesktopEdit() == null) return
+        val name = uiState.customSeriesByBookId.values.firstOrNull {
+            com.doujinzip.android.model.seriesCoverPresentationKey(it.name) == value.key
+        }?.name
+        val versions = org.json.JSONArray().put(uiState.presentations[value.key]?.value?.version ?: value.version)
+        val body = org.json.JSONObject().put("mutationId", java.util.UUID.randomUUID().toString()).put("key", value.key).put("versions", versions)
+        if (name != null) {
+            body.put("seriesName", name)
+            versions.put(uiState.presentations[com.doujinzip.android.model.seriesPresentationKey(name)]?.value?.version ?: 0L)
+        }
+        submitServerEdit("reset-cover", body)
+    }
     fun changePresentationCover(value: GalleryPresentation, source: com.doujinzip.android.model.ReaderImageSource) {
         val profile = requireDesktopEdit() ?: return
         viewModelScope.launch { runOperation {
@@ -2248,7 +2261,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun submitBookFields(ids: Set<String>, fields: org.json.JSONObject) {
         if (requireDesktopEdit() == null) return
-        val books = uiState.libraryBooks.filter { it.id in ids }.distinctBy { it.syncId }
+        val onlineIds = ids.filter { it.startsWith("online:") }.mapTo(hashSetOf()) { it.removePrefix("online:") }
+        val books = uiState.libraryBooks.filter { it.id in ids || it.metadata.hitomiId in onlineIds }.distinctBy { it.syncId }
         if (books.isEmpty() || books.any { it.syncId == null }) {
             uiState = uiState.copy(message = strings[R.string.ui_connect_refresh_before_edit], isError = true)
             return

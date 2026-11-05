@@ -30,7 +30,7 @@ internal fun SeriesDetailContent(name: String, books: List<LibraryBook>, state: 
     onSearchFacet: (String) -> Unit, onSearchLanguage: (String) -> Unit, onLoadPreview: (String) -> Unit = {},
     pageKey: String = name, initialPosition: ReaderPosition = ReaderPosition(0), onPositionChange: (ReaderPosition) -> Unit = {},
     onSavePresentation: (GalleryPresentation, Boolean) -> Unit = { _, _ -> },
-    onCover: (GalleryPresentation, ReaderImageSource) -> Unit = { _, _ -> }, onAcceptRemote: (String) -> Unit = {}) {
+    onCover: (GalleryPresentation, ReaderImageSource) -> Unit = { _, _ -> }, onAcceptRemote: (String) -> Unit = {}, onResetCover: (GalleryPresentation) -> Unit = {}) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     val context = LocalContext.current
     val sorted = remember(books, state.customSeriesByBookId) { books.sortedWith(compareBy<LibraryBook> { state.customSeriesByBookId[it.id]?.order ?: Int.MAX_VALUE }.thenBy { it.id }) }
@@ -79,7 +79,7 @@ internal fun SeriesDetailContent(name: String, books: List<LibraryBook>, state: 
                                     DetailMenuAction(strings[if (read) R.string.ui_mark_unread else R.string.ui_mark_read], ActionSymbol.READ) { if (read) onUnread(ids) else onRead(ids) },
                                     DetailMenuAction(strings[if (hidden) R.string.ui_unhide else R.string.ui_hide], ActionSymbol.HIDE) { onHidden(ids, !hidden) },
                                     DetailMenuAction(strings[R.string.ui_delete_series], ActionSymbol.DELETE) { delete = true }),
-                            coverFromWorks = true, sourceLabels = coverBooks.map { it.title }, metadataSeed = if (metadataRecord == null) aggregate else null)
+                            coverFromWorks = true, sourceLabels = coverBooks.map { it.title }, metadataSeed = if (metadataRecord == null) aggregate else null, editable = state.desktopLibraryReady, onResetCover = { onResetCover(coverValue) })
                     })
             }
             item {

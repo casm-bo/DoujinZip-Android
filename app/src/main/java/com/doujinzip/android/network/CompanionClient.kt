@@ -96,6 +96,7 @@ class CompanionClient {
             "state" -> "/v1/sync/changes"
             "metadata" -> "/v1/library/presentations"
             "series" -> "/v1/library/series"
+            "reset-cover" -> "/v1/library/reset-cover"
             else -> error("Unknown server edit")
         }
         request("${profile.baseUrl}$path", method = "POST", token = profile.token, body = body).requireSuccess()

@@ -651,4 +651,5 @@
     <string name="ui_connection_advanced">Advanced · manual connection</string>
     <string name="ui_lan_permission_required">Allow local network access to find and connect to your PC.</string>
     <string name="ui_server_scan_hint">Use the same local network. If discovery fails, enter the address under Advanced.</string>
+    <string name="ui_reset_cover">Reset cover</string>
 </resources>

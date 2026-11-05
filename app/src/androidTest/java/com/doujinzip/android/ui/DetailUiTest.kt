@@ -14,6 +14,15 @@ import org.junit.Test
 
 class DetailUiTest {
     @get:Rule val compose = createComposeRule()
+    @Test fun coverResetIsAnExplicitDetailAction() {
+        val strings = InstrumentationRegistry.getInstrumentation().targetContext.resources
+        var resets = 0
+        compose.setContent { DoujinZipTheme { PresentationActions(GalleryPresentation("hitomi:42", "Fixture", LibraryMetadata()), null,
+            emptyList(), false, null, { _, _ -> }, { _, _ -> }, {}, emptyList(), onResetCover = { resets++ }) } }
+        compose.onNodeWithContentDescription(strings.getString(R.string.ui_detail_options)).performClick()
+        compose.onNodeWithText(strings.getString(R.string.ui_reset_cover)).performClick()
+        assertEquals(1, resets)
+    }
     @Test fun webtoonClassificationShowsOneLocalizedTagWithoutChangingUserTags() {
         val strings = InstrumentationRegistry.getInstrumentation().targetContext.resources
         compose.setContent { DoujinZipTheme { WorkCard("Fixture", "Artist", "", listOf(CardTag(tagDisplayInfo("webtoon")), CardTag(tagDisplayInfo("user tag"))),

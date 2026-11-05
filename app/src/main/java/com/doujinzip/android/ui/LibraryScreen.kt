@@ -284,6 +284,7 @@ fun LibraryScreen(
     onSaveSeriesPresentation: (GalleryPresentation, Boolean) -> Unit = { _, _ -> },
     onSeriesCover: (GalleryPresentation, ReaderImageSource) -> Unit = { _, _ -> },
     onAcceptRemoteSeriesPresentation: (String) -> Unit = {},
+    onResetSeriesCover: (GalleryPresentation) -> Unit = {},
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     val context = LocalContext.current
@@ -681,7 +682,7 @@ fun LibraryScreen(
                     onDelete = { onDeleteSeries(setOf(selectedSeries)); onSelectedSeriesChange(null) }, onSearchFacet = onSearchFacet, onSearchLanguage = onSearchLanguage,
                     onLoadPreview = onLoadSeriesPreview,
                     pageKey = pageKey, initialPosition = seriesPage.previewPosition, onPositionChange = onSeriesPreviewPosition,
-                    onSavePresentation = onSaveSeriesPresentation, onCover = onSeriesCover, onAcceptRemote = onAcceptRemoteSeriesPresentation,
+                    onSavePresentation = onSaveSeriesPresentation, onCover = onSeriesCover, onAcceptRemote = onAcceptRemoteSeriesPresentation, onResetCover = onResetSeriesCover,
                 )
                 state.isLibraryScanning && state.libraryBooks.isEmpty() -> Box(
                     modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center,
