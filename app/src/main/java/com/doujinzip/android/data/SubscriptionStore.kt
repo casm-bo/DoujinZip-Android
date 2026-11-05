@@ -31,13 +31,20 @@ class SubscriptionStore internal constructor(context: Context, databaseName: Str
         while (c.moveToNext()) add(SubscriptionRecord(SearchSubscription.fromJson(JSONObject(c.getString(0))), c.getString(1),
             c.getString(2)?.let { SearchSubscription.fromJson(JSONObject(it)) }, if (c.isNull(3)) null else c.getLong(3), c.getLong(4), c.getString(5)))
     } }
-    @Synchronized fun save(scope: String, value: SearchSubscription) = transaction {
+    @Synchronized fun save(scope: String, value: SearchSubscription, resubscribe: Boolean = false) = transaction {
         value.validate()
-        require(records(scope).none { !it.value.deleted && it.value.id != value.id && it.value.conditionKey == value.conditionKey }) { "같은 검색조건이 이미 있습니다." }
-        val old = records(scope).find { it.value.id == value.id }
+        val records = records(scope)
+        val condition = value.conditionKey
+        require(records.none { !it.value.deleted && it.value.id != value.id && it.value.conditionKey == condition }) { "같은 검색조건이 이미 있습니다." }
+        val old = records.find { it.value.id == value.id } ?: if (resubscribe && !value.deleted) {
+            records.filter { it.value.deleted && it.value.conditionKey == condition }.maxByOrNull { it.value.version }
+        } else null
         require(old?.conflict == null) { "PC와 충돌한 변경을 먼저 해결하세요." }
-        put(scope, value.copy(version = old?.value?.version ?: value.version), UUID.randomUUID().toString())
-        if (old?.value?.conditionKey != value.conditionKey) writableDatabase.execSQL("UPDATE subscriptions SET baseline=NULL,checked=0 WHERE scope=? AND id=?", arrayOf(scope, value.id))
+        val saved = value.copy(id = old?.value?.id ?: value.id, version = old?.value?.version ?: value.version)
+        put(scope, saved, UUID.randomUUID().toString())
+        if (old?.value?.conditionKey != condition || (old.value.deleted && !saved.deleted)) {
+            writableDatabase.execSQL("UPDATE subscriptions SET baseline=NULL,checked=0 WHERE scope=? AND id=?", arrayOf(scope, saved.id))
+        }
     }
     private fun put(scope: String, value: SearchSubscription, mutation: String?, conflict: SearchSubscription? = null) {
         val values = ContentValues().apply { put("payload", value.json().toString()); put("mutation", mutation); put("conflict", conflict?.json()?.toString()) }

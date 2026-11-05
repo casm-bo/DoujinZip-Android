@@ -63,6 +63,27 @@ class SubscriptionStoreTest {
             assertNull(store.records("pc").single().conflict)
         }
     }
+    @Test fun explicitResubscribeReusesTheDeletedIdAndRestartsMonitoring() {
+        SubscriptionStore(context, null).use { store ->
+            val old = SearchSubscription(id = "fixture", name = "Before", query = "tag:example", enabled = true)
+            store.receive("pc", old.copy(version = 1))
+            store.checked("pc", old, listOf(12), emptyList(), 100)
+            store.receive("pc", old.copy(deleted = true, version = 2))
+
+            val fresh = old.copy(id = "new-fixture", name = "After")
+            store.save("pc", fresh, resubscribe = true)
+            val record = store.records("pc").single()
+            assertEquals(fresh.copy(id = old.id, version = 2), record.value)
+            assertNotNull(record.mutationId)
+            assertNull(record.baseline)
+            assertEquals(0L, record.checkedAt)
+
+            store.receive("pc", old.copy(deleted = true, version = 2))
+            assertFalse(store.records("pc").single().value.deleted)
+            assertNull(store.records("pc").single().conflict)
+        }
+    }
+
     @Test fun matchingChangesAcceptRemoteVersionButDifferentEditsStillConflict() {
         SubscriptionStore(context, null).use { store ->
             val value = SearchSubscription(id = "fixture", name = "Example", query = "tag:example")

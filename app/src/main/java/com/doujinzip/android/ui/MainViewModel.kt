@@ -468,7 +468,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val scope=uiState.selectedProfileId.orEmpty()
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) { subscriptionStore.save(scope,value);com.doujinzip.android.data.SubscriptionWorker.schedule(getApplication()) }
+                withContext(Dispatchers.IO) { subscriptionStore.save(scope, value, resubscribe = true);com.doujinzip.android.data.SubscriptionWorker.schedule(getApplication()) }
                 if(scope == uiState.selectedProfileId.orEmpty()) uiState=uiState.copy(subscriptionEditor=null,favoriteName="",subscriptionError=null)
                 reloadSubscriptions(); scheduleLibrarySync(force=true); refreshSubscriptions(syncNow=false)
             } catch(error: Exception) {
