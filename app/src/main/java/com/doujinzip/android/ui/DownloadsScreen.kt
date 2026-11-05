@@ -24,6 +24,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -55,6 +58,7 @@ import com.doujinzip.android.model.LibraryBook
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadsScreen(
     state: MainUiState,
@@ -105,56 +109,63 @@ fun DownloadsScreen(
         }
     }
 
+    val listState = rememberLazyListState()
+    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(canScroll = { listState.canScrollForward || listState.canScrollBackward })
+    LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset, visibleRequests.isEmpty(), state.downloadQueue.isEmpty()) {
+        if ((!listState.canScrollBackward && !listState.isScrollInProgress) || (visibleRequests.isEmpty() && state.downloadQueue.isEmpty())) scrollBehavior.state.heightOffset = 0f
+    }
     Column(
-        modifier = Modifier.fillMaxSize().padding(contentPadding).background(MaterialTheme.colorScheme.surface),
+        modifier = Modifier.fillMaxSize().padding(contentPadding).background(MaterialTheme.colorScheme.surface).nestedScroll(scrollBehavior.nestedScrollConnection),
     ) {
         val activeCount = state.downloadQueue.count { it.status == DownloadStatus.PENDING || it.status == DownloadStatus.DOWNLOADING } +
             visibleRequests.count { it.status == RequestStatus.WAITING || it.isBusy }
-        Card(colors = appCardColors(), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-            Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(strings[R.string.ui_total_pc_active, state.downloadQueue.size + visibleRequests.size, activeCount],
-                        Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = onClearCompleted,
-                        enabled = state.downloadQueue.any { it.status == DownloadStatus.COMPLETED } || state.downloadRequests.any { it.status == RequestStatus.COMPLETED },
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                    ) { Text(strings[R.string.ui_clear_completed_items]) }
-                    IconButton(onClick = { onRefresh(false) }, enabled = hasProfile && !state.isDownloadQueueLoading,
-                        modifier = Modifier.semantics { contentDescription = strings[R.string.ui_refresh] }) { ActionIcon(ActionSymbol.REFRESH) }
+        CollapsingToolbar(scrollBehavior) {
+            Card(colors = appCardColors(), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(strings[R.string.ui_total_pc_active, state.downloadQueue.size + visibleRequests.size, activeCount],
+                            Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = onClearCompleted,
+                            enabled = state.downloadQueue.any { it.status == DownloadStatus.COMPLETED } || state.downloadRequests.any { it.status == RequestStatus.COMPLETED },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                        ) { Text(strings[R.string.ui_clear_completed_items]) }
+                        IconButton(onClick = { onRefresh(false) }, enabled = hasProfile && !state.isDownloadQueueLoading,
+                            modifier = Modifier.semantics { contentDescription = strings[R.string.ui_refresh] }) { ActionIcon(ActionSymbol.REFRESH) }
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(strings[R.string.ui_local_download_folder] + ": " + (state.downloadLocation?.let { readableStoragePath(it.uri, it.displayName) } ?: strings[R.string.download_folder_unset]),
+                            Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { folderPicker.launch(null) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text(strings[R.string.ui_choose_folder]) }
+                    }
+                    Text(strings[R.string.ui_desktop_download_folder] + ": " + (state.desktopDownloadPath?.let { readableStoragePath(it) }
+                        ?: strings[R.string.ui_not_configured_on_desktop]), Modifier.fillMaxWidth().padding(bottom = 4.dp), style = MaterialTheme.typography.bodySmall)
                 }
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(strings[R.string.ui_local_download_folder] + ": " + (state.downloadLocation?.let { readableStoragePath(it.uri, it.displayName) } ?: strings[R.string.download_folder_unset]),
-                        Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { folderPicker.launch(null) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text(strings[R.string.ui_choose_folder]) }
+            }
+            if (!hasProfile || state.isDownloadConnectionUnavailable) {
+                Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(strings[R.string.ui_pc_disconnected_pending_requests_are_stored_on_this_device], Modifier.weight(1f))
+                    TextButton(onClick = onConnect) { Text(strings[R.string.ui_connection_settings]) }
                 }
-                Text(strings[R.string.ui_desktop_download_folder] + ": " + (state.desktopDownloadPath?.let { readableStoragePath(it) }
-                    ?: strings[R.string.ui_not_configured_on_desktop]), Modifier.fillMaxWidth().padding(bottom = 4.dp), style = MaterialTheme.typography.bodySmall)
             }
-        }
-        if (!hasProfile || state.isDownloadConnectionUnavailable) {
-            Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(strings[R.string.ui_pc_disconnected_pending_requests_are_stored_on_this_device], Modifier.weight(1f))
-                TextButton(onClick = onConnect) { Text(strings[R.string.ui_connection_settings]) }
+            state.downloadQueueError?.let { error ->
+                Text(
+                    error,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
-        }
-        state.downloadQueueError?.let { error ->
-            Text(
-                error,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
 
-        if (state.downloadQueue.any { it.status == DownloadStatus.COMPLETED }) {
-            Text(
-                strings[R.string.ui_clearing_completed_items_keeps_files_in_the_pc_library],
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
+            if (state.downloadQueue.any { it.status == DownloadStatus.COMPLETED }) {
+                Text(
+                    strings[R.string.ui_clearing_completed_items_keeps_files_in_the_pc_library],
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
 
+        }
         when {
             state.isDownloadQueueLoading && state.downloadQueue.isEmpty() && state.downloadRequests.isEmpty() -> {
                 Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
@@ -174,7 +185,6 @@ fun DownloadsScreen(
                 }
             }
             else -> Box(Modifier.fillMaxSize()) {
-                val listState = rememberLazyListState()
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
