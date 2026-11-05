@@ -8,6 +8,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.AtomicFile
 import com.doujinzip.android.security.*
+import com.doujinzip.android.model.GalleryPresentation
 import com.doujinzip.android.model.SearchSubscription
 import org.json.JSONArray
 import org.json.JSONObject
@@ -59,7 +60,7 @@ internal class LocalBackupStore(private val context: Context) {
             preferences.put(file, encodeBackupPreferences(values))
         }
         val identities = JSONArray()
-        val presentations = JSONArray()
+        val presentationsByKey = linkedMapOf<String, GalleryPresentation>()
         LibraryIdentityStore(context).use { store ->
             val db = store.readableDatabase
             val locations = BrowserPreferenceStore(context).loadLibraryLocations()
@@ -80,10 +81,13 @@ internal class LocalBackupStore(private val context: Context) {
                 val value = presentationFromJson(JSONObject(row.getString("payload")))
                 val belongsToSyncedPc = profileId != null && row.getString("resource_key").startsWith("profile/$profileId/")
                 if (!belongsToSyncedPc || row.getInt("dirty") != 0 || value.version == 0L) {
-                    presentations.put(value.copy(version = 0, revision = 0).toJson())
+                    val portable = value.copy(version = 0, revision = 0)
+                    val existing = presentationsByKey.putIfAbsent(value.key, portable)
+                    require(existing == null || existing == portable) { "Conflicting local metadata from multiple PCs" }
                 }
             }
         }
+        val presentations = JSONArray(presentationsByKey.values.map { it.toJson() })
         val subscriptions = JSONArray()
         val notices = JSONObject()
         SubscriptionStore(context).use { store ->

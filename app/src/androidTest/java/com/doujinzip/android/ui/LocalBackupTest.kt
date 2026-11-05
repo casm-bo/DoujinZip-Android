@@ -121,6 +121,28 @@ class LocalBackupTest {
         } }
     }
 
+    @Test fun backupCombinesOnlyIdenticalPresentationSnapshots() {
+        val base = InstrumentationRegistry.getInstrumentation().targetContext
+        IsolatedContext(base).use { context ->
+            val value = GalleryPresentation("hitomi:42", "Fixture", LibraryMetadata(tags = listOf("fixture")))
+            LibraryIdentityStore(context).use { identity ->
+                PresentationStore(identity, "previous-pc").receive(value.copy(version = 1))
+                PresentationStore(identity, "another-pc").receive(value.copy(version = 3, revision = 2))
+                val backup = LocalBackupStore(context)
+                val archive = backup.capture(emptySet(), "current-pc", "ko")
+                val presentations = archive.data.getJSONArray("presentations")
+                assertEquals(1, presentations.length())
+                assertEquals(value, presentationFromJson(presentations.getJSONObject(0)))
+
+                PresentationStore(identity, "another-pc").receive(value.copy(title = "Different", version = 4))
+                val failure = assertThrows(IllegalArgumentException::class.java) {
+                    backup.capture(emptySet(), "current-pc", "ko")
+                }
+                assertEquals("Conflicting local metadata from multiple PCs", failure.message)
+            }
+        }
+    }
+
     @Test fun backupSkipsOnlyMatchingDeletedSubscriptionConflicts() {
         val base = InstrumentationRegistry.getInstrumentation().targetContext
         IsolatedContext(base).use { context ->
