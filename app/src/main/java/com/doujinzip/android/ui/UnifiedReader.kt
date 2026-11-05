@@ -165,7 +165,7 @@ internal fun UnifiedReader(
     var previousBookDialog by remember(readerKey) { mutableStateOf(false) }
     var nextBookDialog by remember(readerKey) { mutableStateOf(false) }
     var pagerReady by remember(readerKey) { mutableStateOf(false) }
-    LaunchedEffect(actualMode) {
+    LaunchedEffect(readerKey, actualMode) {
         pagerReady = false
         if (actualMode == ViewerReadingMode.PAGE && pagerState.currentPage != currentPage) pagerState.scrollToPage(currentPage)
         pagerReady = actualMode == ViewerReadingMode.PAGE

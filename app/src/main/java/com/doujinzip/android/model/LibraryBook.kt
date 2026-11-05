@@ -24,6 +24,8 @@ data class LibraryBook(
     val syncedSeriesModifiedAt: Long = 0L,
     val hasSyncedSeriesState: Boolean = false,
     val remoteBookId: Long? = null,
+    val contentVersion: String? = null,
+    val contentRevision: Long = 0L,
     val coverUriOverride: String? = null,
     val cloudToken: String? = null,
     val webtoon: Boolean? = null,

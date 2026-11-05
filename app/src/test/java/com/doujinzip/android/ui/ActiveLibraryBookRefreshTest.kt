@@ -76,6 +76,17 @@ class ActiveLibraryBookRefreshTest {
         assertEquals(refreshed.pages, result.pages)
     }
 
+    @Test
+    fun changedContentVersionInvalidatesPagesEvenWhenCountAndTimestampMatch() {
+        val pages = listOf(LibraryPage("http://desktop/page/0?v=old", "1"), LibraryPage("", "2"))
+        val prepared = cloudBook(100L, pages.mapIndexed { index, page -> page.copy(uri = "http://desktop/page/$index?v=old") })
+            .copy(contentVersion = "old")
+        val refreshed = cloudBook(100L, pages).copy(contentVersion = "new")
+        assertEquals(refreshed.pages, refreshed.withPreservedReaderPages(prepared).pages)
+        assertFalse(refreshed.withPreservedReaderPages(prepared).hasResolvedReaderPages())
+        assertFalse(refreshed.withPreservedReaderPages(prepared.copy(contentVersion = null)).hasResolvedReaderPages())
+    }
+
     private fun archiveBook(modifiedAt: Long, pages: List<LibraryPage>) = LibraryBook(
         id = "archive-book",
         title = "Archive",

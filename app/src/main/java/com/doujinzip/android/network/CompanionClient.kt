@@ -209,10 +209,12 @@ class CompanionClient {
         withContext(Dispatchers.IO) {
             val collected = mutableListOf<LibraryBook>()
             var cursor: Long? = null
+            var snapshot: String? = null
             do {
                 val query = buildString {
                     append("?limit=$LIBRARY_PAGE_SIZE")
                     cursor?.let { append("&cursor=$it") }
+                    snapshot?.let { append("&snapshot=${java.net.URLEncoder.encode(it, "UTF-8")}") }
                 }
                 val root = request(
                     url = "${profile.baseUrl}/v1/library/books$query",
@@ -221,6 +223,9 @@ class CompanionClient {
                 if (!root.optBoolean("success", false)) {
                     throw CompanionApiException(root.errorMessage("라이브러리 목록 요청에 실패했습니다."))
                 }
+                val receivedSnapshot = root.nullableString("snapshot")
+                require(snapshot == null || snapshot == receivedSnapshot) { "Library changed during refresh" }
+                snapshot = receivedSnapshot
                 val data = root.opt("data")
                 val books = when (data) {
                     is JSONArray -> data
@@ -243,13 +248,15 @@ class CompanionClient {
                             )
                         }
                     }
-                    val pageCount = item.optInt("pageCount", item.optInt("page_count", 0))
+                    val pageCount = item.optInt("pageCount", item.optInt("page_count", 0)).also { require(it >= 0) }
                     val sourcePath = item.nullableString("libraryPath")
                         ?: item.nullableString("library_path")
                         ?: "데스크톱 라이브러리"
                     val modifiedAt = item.optLong("modifiedAt", 0L)
+                    val contentVersion = item.nullableString("contentVersion")
+                    val contentKey = java.net.URLEncoder.encode(contentVersion ?: modifiedAt.toString(), "UTF-8")
                     val bookUrl = "${profile.baseUrl}/v1/library/books/$id"
-                    val firstPageUrl = if (pageCount > 0) "$bookUrl/pages/0?v=$modifiedAt" else null
+                    val firstPageUrl = if (pageCount > 0) "$bookUrl/pages/0?v=$contentKey" else null
                     val coverUrl = firstPageUrl
                         ?: absoluteUrl(profile.baseUrl, item.nullableString("coverUrl"))
                         ?: "$bookUrl/cover"
@@ -262,9 +269,15 @@ class CompanionClient {
                             locationName = sourcePath.substringAfterLast('\\').substringAfterLast('/'),
                             folderUri = item.nullableString("path").orEmpty(),
                             pages = List(pageCount) { page ->
-                                LibraryPage(uri = if (page == 0) firstPageUrl.orEmpty() else "", name = "${page + 1}")
+                                LibraryPage(uri = when {
+                                    contentVersion != null -> "$bookUrl/pages/$page?v=$contentKey"
+                                    page == 0 -> firstPageUrl.orEmpty()
+                                    else -> ""
+                                }, name = "${page + 1}")
                             },
                             modifiedAt = modifiedAt,
+                            contentVersion = contentVersion,
+                            contentRevision = item.optLong("contentRevision", 0L),
                             metadata = LibraryMetadata(
                                 hitomiId = item.nullableString("hitomiId") ?: item.nullableString("hitomi_id"),
                                 publishedDate = item.nullableString("publishedDate"),
@@ -323,13 +336,16 @@ class CompanionClient {
             ).requireSuccess().nullableString("path")
         }
 
-    suspend fun getLibraryBookPages(profile: DesktopProfile, bookId: Long): List<String> =
+    suspend fun getLibraryBookPages(profile: DesktopProfile, bookId: Long, modifiedAt: Long? = null): List<String> =
         withContext(Dispatchers.IO) {
             val pages = request(
                 url = "${profile.baseUrl}/v1/library/books/$bookId/pages",
                 token = profile.token,
             ).requireDataArray()
-            pages.toStringList().map { absoluteUrl(profile.baseUrl, it) ?: it }
+            pages.toStringList().map {
+                val url = absoluteUrl(profile.baseUrl, it) ?: it
+                if (modifiedAt != null && !url.contains("?")) "$url?v=$modifiedAt" else url
+            }
         }
 
     suspend fun deleteLibraryBook(profile: DesktopProfile, bookId: Long) =

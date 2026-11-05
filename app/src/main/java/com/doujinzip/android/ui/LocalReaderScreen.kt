@@ -68,14 +68,14 @@ fun LocalReaderScreen(
     val pages = remember(readableBook.id, readableBook.pages, readableBook.cloudToken) {
         readableBook.pages.mapIndexed { index, page ->
             ReaderPageModel(
-                key = "$index:${page.name}",
+                key = "$index:${page.uri}",
                 source = ReaderImageSource(page.uri, readableBook.cloudToken?.let { mapOf("Authorization" to "Bearer $it") }.orEmpty()),
                 model = libraryImageRequest(context, page.uri, readableBook.cloudToken),
             )
         }
     }
     UnifiedReader(
-        readerKey = sessionKey,
+        readerKey = "$sessionKey:${readableBook.contentVersion ?: readableBook.modifiedAt}",
         workKey = readableBook.metadata.hitomiId?.let { "gallery:$it" } ?: readableBook.syncId?.let { "sync:$it" } ?: "book:${readableBook.id}",
         initialOffset = initialOffset,
         title = readableBook.title,

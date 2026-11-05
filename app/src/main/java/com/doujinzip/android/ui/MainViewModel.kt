@@ -2092,7 +2092,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return
             }
             suspend {
-                val urls = client.getLibraryBookPages(profile, remoteId)
+                val urls = client.getLibraryBookPages(profile, remoteId, book.modifiedAt)
                 book.copy(
                     pages = urls.mapIndexed { index, url -> LibraryPage(url, "${index + 1}") },
                     coverUriOverride = book.coverUri,
@@ -2144,7 +2144,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val prepared = if (book.isCloud) {
                     check(profile != null && book.remoteBookId != null) { strings[R.string.msg_reconnect_to_desktop_and_retry] }
-                    val pages = client.getLibraryBookPages(profile, book.remoteBookId)
+                    val pages = client.getLibraryBookPages(profile, book.remoteBookId, book.modifiedAt)
                     book.copy(pages = pages.mapIndexed { index, url -> LibraryPage(url, "${index + 1}") }, coverUriOverride = book.coverUri)
                 } else libraryArchiveExtractor.materialize(book)
                 if (generation == libraryProfileGeneration && selectedProfile()?.id == profile?.id) uiState = uiState.copy(libraryBooks = uiState.libraryBooks.map {
@@ -4380,7 +4380,8 @@ internal fun LibraryBook.withPreservedReaderPages(previous: LibraryBook?): Libra
     }
     val unchanged = sameSource &&
         pages.size == previous.pages.size &&
-        modifiedAt == previous.modifiedAt
+        modifiedAt == previous.modifiedAt &&
+        contentVersion == previous.contentVersion
     if (!unchanged) return this
     return copy(
         pages = previous.pages,
