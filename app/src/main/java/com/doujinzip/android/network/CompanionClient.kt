@@ -156,11 +156,12 @@ class CompanionClient {
         )
     }
 
-    suspend fun pair(baseUrl: String, code: String, deviceName: String): PairingResult =
+    suspend fun pair(baseUrl: String, code: String, deviceName: String, clientId: String? = null): PairingResult =
         withContext(Dispatchers.IO) {
             val body = JSONObject()
                 .put("code", code)
                 .put("deviceName", deviceName)
+                .put("clientId", clientId)
             val data = request("$baseUrl/v1/pair", method = "POST", body = body).requireSuccess()
             val device = data.getJSONObject("device")
             PairingResult(

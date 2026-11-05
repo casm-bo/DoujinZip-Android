@@ -923,7 +923,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val status = client.getStatus(baseUrl)
                 require(status.pairingAvailable) { strings[R.string.msg_generate_a_new_pairing_code_on_desktop_first] }
 
-                val result = client.pair(baseUrl, code, phoneDeviceName)
+                val result = client.pair(baseUrl, code, phoneDeviceName,
+                    com.doujinzip.android.security.pairingIdentity(getApplication()))
                 notifyOnDownloadReconnect = false
                 val profile = DesktopProfile(
                     id = result.libraryId?.let { browserPreferenceStore.rememberLibraryScope(it, it) } ?: result.deviceId,
