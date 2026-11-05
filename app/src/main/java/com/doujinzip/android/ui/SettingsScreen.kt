@@ -642,8 +642,8 @@ private fun ConnectionSettingsScreen(
         confirmButton = { TextButton(onClick = { onSelectProfile(id); keepProfile = null }) { Text(strings[R.string.ui_confirm]) } },
         dismissButton = { TextButton(onClick = { keepProfile = null }) { Text(strings[R.string.ui_cancel]) } }) }
     SettingsDetailLayout(strings[R.string.ui_connection_settings], contentPadding, onBack) {
-        SectionCard(strings[R.string.ui_server_scan]) {
-            Button(onClick = { withLanPermission(onScanServers) }, enabled = enabled && !state.isScanningServers) {
+        if (state.profiles.isEmpty()) SectionCard(strings[R.string.ui_server_scan]) {
+            Button(modifier = Modifier.fillMaxWidth(), onClick = { withLanPermission(onScanServers) }, enabled = enabled && !state.isScanningServers) {
                 Text(strings[if (state.isScanningServers) R.string.ui_server_scanning else R.string.ui_server_scan])
             }
             state.discoveredServers.forEach { server ->
@@ -654,7 +654,8 @@ private fun ConnectionSettingsScreen(
             }
             if (permissionDenied) Text(strings[R.string.ui_lan_permission_required], color = MaterialTheme.colorScheme.error)
             if (!state.isScanningServers && state.discoveredServers.isEmpty()) Text(strings[R.string.ui_server_scan_hint], style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = { advanced = !advanced }) { Text(strings[R.string.ui_connection_advanced]) }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = { advanced = !advanced }) { Text(strings[R.string.ui_connection_advanced]) }
         }
         if (state.profiles.isEmpty() && (advanced || state.selectedServerName != null)) SectionCard(strings[R.string.ui_connection_and_sync]) {
             Text(
