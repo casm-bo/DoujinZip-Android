@@ -645,4 +645,10 @@
     <string name="ui_connect_refresh_before_edit">Connect to the PC and refresh before editing.</string>
     <string name="ui_pc_edit_conflict">PC data changed or no longer exists. Refresh and edit again.</string>
     <string name="ui_legacy_edits_saved">Previous offline edits were preserved locally; they will not overwrite the PC.</string>
+    <string name="ui_server_scan">Scan for PC</string>
+    <string name="ui_server_scanning">Scanning…</string>
+    <string name="ui_connect_server">Connect</string>
+    <string name="ui_connection_advanced">Advanced · manual connection</string>
+    <string name="ui_lan_permission_required">Allow local network access to find and connect to your PC.</string>
+    <string name="ui_server_scan_hint">Use the same local network. If discovery fails, enter the address under Advanced.</string>
 </resources>

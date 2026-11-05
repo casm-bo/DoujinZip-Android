@@ -645,4 +645,10 @@
     <string name="ui_connect_refresh_before_edit">请连接电脑并刷新后再编辑。</string>
     <string name="ui_pc_edit_conflict">电脑上的信息已更改或删除，请刷新后重新编辑。</string>
     <string name="ui_legacy_edits_saved">之前未发送的编辑已保存在设备上，不会自动覆盖电脑数据。</string>
+    <string name="ui_server_scan">扫描电脑</string>
+    <string name="ui_server_scanning">正在搜索…</string>
+    <string name="ui_connect_server">连接</string>
+    <string name="ui_connection_advanced">高级 · 手动连接</string>
+    <string name="ui_lan_permission_required">请允许访问本地网络以搜索并连接电脑。</string>
+    <string name="ui_server_scan_hint">请使用同一本地网络。如果找不到电脑，请在高级选项中输入地址。</string>
 </resources>

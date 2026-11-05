@@ -7,14 +7,16 @@ data class DesktopProfile(
     val token: String,
     val deviceId: String = id,
     val libraryId: String? = null,
+    val serverId: String? = null,
 )
 
-data class CompanionStatus(
-    val service: String,
+data class CompanionStatus(    val service: String,
     val version: Int,
     val pairingAvailable: Boolean,
     val syncGeneration: Long = 0L,
     val downloadRequestIds: Boolean = false,
+    val serverId: String? = null,
+    val serverName: String? = null,
 )
 
 data class PairingResult(

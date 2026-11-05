@@ -39,6 +39,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -107,6 +109,9 @@ fun SettingsScreen(
     onPrepareBackup: suspend (String) -> java.io.File = { error("Backup unavailable") },
     initialSectionName: String = "HOME",
     onSectionChanged: (String) -> Unit = {},
+    onScanServers: () -> Unit = {},
+    onStopServerScan: () -> Unit = {},
+    onSelectServer: (String) -> Unit = {},
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     var sectionName by rememberSaveable { mutableStateOf(initialSectionName) }
@@ -183,6 +188,9 @@ fun SettingsScreen(
             onCodeChange = onCodeChange,
             onTestConnection = onTestConnection,
             onPair = onPair,
+            onScanServers = onScanServers,
+            onStopServerScan = onStopServerScan,
+            onSelectServer = onSelectServer,
             onSelectProfile = onSelectProfile,
             onRemoveProfile = onRemoveProfile,
             onSyncNow = onSyncNow,
@@ -600,8 +608,26 @@ private fun ConnectionSettingsScreen(
     onSelectProfile: (String) -> Unit,
     onRemoveProfile: (String) -> Unit,
     onSyncNow: () -> Unit,
+    onScanServers: () -> Unit,
+    onStopServerScan: () -> Unit,
+    onSelectServer: (String) -> Unit,
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var advanced by rememberSaveable { mutableStateOf(false) }
+    var permissionAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var permissionDenied by remember { mutableStateOf(false) }
+    val permission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) permissionAction?.invoke() else permissionDenied = true
+        permissionAction = null
+    }
+    fun withLanPermission(action: () -> Unit) {
+        if (android.os.Build.VERSION.SDK_INT >= 37 && context.checkSelfPermission("android.permission.ACCESS_LOCAL_NETWORK") != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            permissionAction = action
+            permission.launch("android.permission.ACCESS_LOCAL_NETWORK")
+        } else action()
+    }
+    DisposableEffect(Unit) { onDispose { onStopServerScan() } }
     val enabled = !state.isBusy && !state.isLoadingPage && !state.isLibrarySyncing
     var disconnect by rememberSaveable { mutableStateOf(false) }
     var keepProfile by rememberSaveable { mutableStateOf<String?>(null) }
@@ -616,12 +642,28 @@ private fun ConnectionSettingsScreen(
         confirmButton = { TextButton(onClick = { onSelectProfile(id); keepProfile = null }) { Text(strings[R.string.ui_confirm]) } },
         dismissButton = { TextButton(onClick = { keepProfile = null }) { Text(strings[R.string.ui_cancel]) } }) }
     SettingsDetailLayout(strings[R.string.ui_connection_settings], contentPadding, onBack) {
-        if (state.profiles.isEmpty()) SectionCard(strings[R.string.ui_connection_and_sync]) {
+        SectionCard(strings[R.string.ui_server_scan]) {
+            Button(onClick = { withLanPermission(onScanServers) }, enabled = enabled && !state.isScanningServers) {
+                Text(strings[if (state.isScanningServers) R.string.ui_server_scanning else R.string.ui_server_scan])
+            }
+            state.discoveredServers.forEach { server ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(server.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                    TextButton(onClick = { onSelectServer(server.id) }, enabled = enabled) { Text(strings[R.string.ui_connect_server]) }
+                }
+            }
+            if (permissionDenied) Text(strings[R.string.ui_lan_permission_required], color = MaterialTheme.colorScheme.error)
+            if (!state.isScanningServers && state.discoveredServers.isEmpty()) Text(strings[R.string.ui_server_scan_hint], style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { advanced = !advanced }) { Text(strings[R.string.ui_connection_advanced]) }
+        }
+        if (state.profiles.isEmpty() && (advanced || state.selectedServerName != null)) SectionCard(strings[R.string.ui_connection_and_sync]) {
             Text(
                 strings[R.string.ui_pc_connection_is_optional_and_does_not_affect_standalone_readi],
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(12.dp))
+            state.selectedServerName?.let { Text(it, fontWeight = FontWeight.SemiBold) }
+            if (advanced) {
             Row(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = state.host,
@@ -653,6 +695,7 @@ private fun ConnectionSettingsScreen(
                 singleLine = true,
                 enabled = enabled,
             )
+            }
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = state.pairingCode,
@@ -667,9 +710,9 @@ private fun ConnectionSettingsScreen(
                 modifier = Modifier.padding(top = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                OutlinedButton(onClick = onTestConnection, enabled = enabled) { Text(strings[R.string.ui_check_status]) }
+                if (advanced) OutlinedButton(onClick = { withLanPermission(onTestConnection) }, enabled = enabled) { Text(strings[R.string.ui_check_status]) }
                 Button(
-                    onClick = onPair,
+                    onClick = { withLanPermission(onPair) },
                     enabled = enabled && state.pairingCode.length == 6 && state.deviceName.isNotBlank(),
                 ) {
                     Text(strings[R.string.ui_pair])
@@ -689,7 +732,7 @@ private fun ConnectionSettingsScreen(
                 val profile = state.profiles.single()
                 Text(strings[R.string.server_name_label, profile.name], fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(8.dp))
-                Text(strings[R.string.server_address_label, profile.baseUrl], style = MaterialTheme.typography.bodyMedium)
+                if (advanced) Text(strings[R.string.server_address_label, profile.baseUrl], style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(8.dp))
                 Text(strings[R.string.connection_status_label] + " " + strings[when (state.desktopConnectionState) {
                     DesktopConnectionState.CONNECTED -> R.string.ui_connected
@@ -707,7 +750,7 @@ private fun ConnectionSettingsScreen(
                 state.subscriptionSyncError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 state.librarySyncError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onSyncNow, enabled = enabled) { Text(strings[R.string.sub_sync_now]) }
+                    Button(onClick = { withLanPermission(onSyncNow) }, enabled = enabled) { Text(strings[R.string.sub_sync_now]) }
                     OutlinedButton(onClick = { disconnect = true }, enabled = enabled) { Text(strings[R.string.connection_disconnect]) }
                 }
             }

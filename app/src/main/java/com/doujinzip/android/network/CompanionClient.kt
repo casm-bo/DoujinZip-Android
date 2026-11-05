@@ -141,11 +141,13 @@ class CompanionClient {
             }
         } finally { connection.disconnect() }
     }
-    suspend fun getStatus(baseUrl: String): CompanionStatus = withContext(Dispatchers.IO) {
-        val root = request("$baseUrl/v1/status")
+    suspend fun getStatus(baseUrl: String, timeoutMs: Int = CONNECT_TIMEOUT_MS): CompanionStatus = withContext(Dispatchers.IO) {
+        val root = request("$baseUrl/v1/status", readTimeoutMs = timeoutMs, connectTimeoutMs = timeoutMs)
         val data = root.requireSuccess()
         CompanionStatus(
             service = data.optString("service", "unknown"),
+            serverId = data.optString("serverId").takeIf(String::isNotBlank),
+            serverName = data.optString("serverName").takeIf(String::isNotBlank),
             version = data.optInt("version", 0),
             pairingAvailable = data.optBoolean("pairingAvailable", false),
             syncGeneration = data.optLong("syncGeneration", 0L),
@@ -596,12 +598,13 @@ class CompanionClient {
         token: String? = null,
         body: JSONObject? = null,
         readTimeoutMs: Int = READ_TIMEOUT_MS,
+        connectTimeoutMs: Int = CONNECT_TIMEOUT_MS,
     ): JSONObject {
         val connection = URL(url).openConnection() as HttpURLConnection
         return try {
             connection.instanceFollowRedirects = false
             connection.requestMethod = method
-            connection.connectTimeout = CONNECT_TIMEOUT_MS
+            connection.connectTimeout = connectTimeoutMs
             connection.readTimeout = readTimeoutMs
             connection.setRequestProperty("Accept", "application/json")
             if (token != null) {

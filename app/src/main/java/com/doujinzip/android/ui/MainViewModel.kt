@@ -266,6 +266,9 @@ data class MainUiState(
     val downloadQueueError: String? = null,
     val isDownloadConnectionUnavailable: Boolean = false,
     val activeDownloadActionIds: Set<Long> = emptySet(),
+    val discoveredServers: List<com.doujinzip.android.network.DiscoveredServer> = emptyList(),
+    val isScanningServers: Boolean = false,
+    val selectedServerName: String? = null,
     val desktopLibraryReady: Boolean = false,
     val desktopConnectionState: DesktopConnectionState = DesktopConnectionState.IDLE,
     val isBusy: Boolean = false,
@@ -840,6 +843,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         openSearchTab(normalizedFacet, uiState.preferredLanguages)
     }
 
+    private var serverScanJob: kotlinx.coroutines.Job? = null
+    fun scanServers() {
+        val previous = serverScanJob
+        previous?.cancel()
+        serverScanJob = viewModelScope.launch {
+            previous?.join()
+            uiState = uiState.copy(isScanningServers = true, discoveredServers = emptyList())
+            try {
+                com.doujinzip.android.network.ServerDiscovery(getApplication(), client).scan { found ->
+                    uiState = uiState.copy(discoveredServers = (uiState.discoveredServers.filterNot { it.id == found.id } + found).sortedBy { it.name })
+                }
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                uiState = uiState.copy(message = error.message, isError = true)
+            } finally { uiState = uiState.copy(isScanningServers = false) }
+        }
+    }
+    fun stopServerScan() { serverScanJob?.cancel() }
+    fun selectDiscoveredServer(id: String) {
+        val server = uiState.discoveredServers.firstOrNull { it.id == id } ?: return
+        stopServerScan()
+        val saved = uiState.profiles.singleOrNull()
+        if (saved != null) {
+            if (saved.serverId != id) { uiState = uiState.copy(message = strings[R.string.connection_disconnect_first], isError = true); return }
+            viewModelScope.launch { runOperation {
+                val status = client.getStatus(server.baseUrl)
+                require(status.serverId == saved.serverId)
+                val updated = saved.copy(baseUrl = server.baseUrl)
+                client.getLibraryId(updated)
+                profileStore.save(listOf(updated))
+                uiState = uiState.copy(profiles = listOf(updated), desktopLibraryReady = false)
+                reloadProfileLibrary()
+            } }
+        } else {
+            val url = java.net.URI(server.baseUrl)
+            uiState = uiState.copy(host = url.host, port = url.port.toString(), deviceName = server.name, selectedServerName = server.name, pairingCode = "")
+        }
+    }
+
     fun testConnection() {
         viewModelScope.launch {
             runOperation {
@@ -878,6 +920,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     token = result.token,
                     deviceId = result.deviceId,
                     libraryId = result.libraryId,
+                    serverId = status.serverId,
                 )
                 val profiles = listOf(profile)
                 profileStore.save(profiles)
@@ -1313,10 +1356,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (connected) {
                     val libraryId = runCatching { client.getLibraryId(profile) }.getOrNull()
                     if (selectedProfile() != profile) continue
-                    if (libraryId != null && libraryId != profile.libraryId) {
+                    if (libraryId != null && (libraryId != profile.libraryId || (profile.serverId == null && status?.serverId != null))) {
                         val fallback = if (profile.libraryId == null) profile.id else libraryId
                         val scope = browserPreferenceStore.rememberLibraryScope(libraryId, fallback)
-                        val updated = profile.copy(id = scope, libraryId = libraryId)
+                        val updated = profile.copy(id = scope, libraryId = libraryId, serverId = status?.serverId ?: profile.serverId)
                         profileStore.save(listOf(updated))
                         uiState = uiState.copy(profiles = listOf(updated), selectedProfileId = scope)
                         if (scope != profile.id) {

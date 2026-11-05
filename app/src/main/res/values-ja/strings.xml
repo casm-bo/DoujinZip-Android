@@ -645,4 +645,10 @@
     <string name="ui_connect_refresh_before_edit">PCに接続して更新してから編集してください。</string>
     <string name="ui_pc_edit_conflict">PCの情報が変更または削除されました。更新してから再度編集してください。</string>
     <string name="ui_legacy_edits_saved">以前の未送信編集は端末に保存しました。PCへ自動上書きしません。</string>
+    <string name="ui_server_scan">PCを検索</string>
+    <string name="ui_server_scanning">検索中…</string>
+    <string name="ui_connect_server">接続</string>
+    <string name="ui_connection_advanced">詳細 · 手動接続</string>
+    <string name="ui_lan_permission_required">PCの検索と接続にはローカルネットワークへのアクセスを許可してください。</string>
+    <string name="ui_server_scan_hint">同じローカルネットワークで検索します。見つからない場合は詳細からアドレスを入力してください。</string>
 </resources>
