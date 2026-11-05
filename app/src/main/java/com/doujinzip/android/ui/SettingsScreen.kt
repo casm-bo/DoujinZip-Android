@@ -643,19 +643,27 @@ private fun ConnectionSettingsScreen(
         dismissButton = { TextButton(onClick = { keepProfile = null }) { Text(strings[R.string.ui_cancel]) } }) }
     SettingsDetailLayout(strings[R.string.ui_connection_settings], contentPadding, onBack) {
         if (state.profiles.isEmpty()) SectionCard(strings[R.string.ui_server_scan]) {
-            Button(modifier = Modifier.fillMaxWidth(), onClick = { withLanPermission(onScanServers) }, enabled = enabled && !state.isScanningServers) {
-                Text(strings[if (state.isScanningServers) R.string.ui_server_scanning else R.string.ui_server_scan])
-            }
-            state.discoveredServers.forEach { server ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(server.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-                    TextButton(onClick = { onSelectServer(server.id) }, enabled = enabled) { Text(strings[R.string.ui_connect_server]) }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Button(onClick = { withLanPermission(onScanServers) }, enabled = enabled && !state.isScanningServers) {
+                    Text(strings[if (state.isScanningServers) R.string.ui_server_scanning else R.string.ui_search])
                 }
+                OutlinedButton(onClick = { advanced = !advanced }) { Text(strings[R.string.ui_connection_advanced]) }
+            }
+            Spacer(Modifier.height(12.dp))
+            state.discoveredServers.forEach { server ->
+                androidx.compose.material3.OutlinedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = androidx.compose.material3.CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                ) {
+                    Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(server.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Button(onClick = { onSelectServer(server.id) }, enabled = enabled) { Text(strings[R.string.ui_connect_server]) }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
             }
             if (permissionDenied) Text(strings[R.string.ui_lan_permission_required], color = MaterialTheme.colorScheme.error)
             if (!state.isScanningServers && state.discoveredServers.isEmpty()) Text(strings[R.string.ui_server_scan_hint], style = MaterialTheme.typography.bodySmall)
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = { advanced = !advanced }) { Text(strings[R.string.ui_connection_advanced]) }
         }
         if (state.profiles.isEmpty() && (advanced || state.selectedServerName != null)) SectionCard(strings[R.string.ui_connection_and_sync]) {
             Text(
