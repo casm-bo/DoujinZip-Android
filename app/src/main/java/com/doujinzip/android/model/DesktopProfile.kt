@@ -5,6 +5,8 @@ data class DesktopProfile(
     val name: String,
     val baseUrl: String,
     val token: String,
+    val deviceId: String = id,
+    val libraryId: String? = null,
 )
 
 data class CompanionStatus(
@@ -18,6 +20,7 @@ data class CompanionStatus(
 data class PairingResult(
     val deviceId: String,
     val token: String,
+    val libraryId: String? = null,
 )
 
 data class SearchResult(

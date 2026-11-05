@@ -22,6 +22,14 @@ class BrowserPreferenceStore(context: Context) {
     fun loadLastDesktopSync(): Long = preferences.getLong("last_desktop_sync", 0L)
     fun saveLastDesktopSync(value: Long) { preferences.edit().putLong("last_desktop_sync", value).apply() }
 
+    @Synchronized
+    fun rememberLibraryScope(libraryId: String, fallback: String): String {
+        val key = "library_scope:$libraryId"
+        return preferences.getString(key, null) ?: fallback.also {
+            preferences.edit().putString(key, it).apply()
+        }
+    }
+
     fun loadSearchTagFilters(): Set<com.doujinzip.android.model.SearchTagFilter> =
         com.doujinzip.android.model.SearchTagFilter.entries.filter { it.name in preferences.getStringSet("search_tag_filters", emptySet()).orEmpty() }.toSet()
     fun saveSearchTagFilters(value: Set<com.doujinzip.android.model.SearchTagFilter>) =

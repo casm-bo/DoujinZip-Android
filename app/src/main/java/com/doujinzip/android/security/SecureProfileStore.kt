@@ -78,7 +78,9 @@ class SecureProfileStore(context: Context) {
                     .put("id", profile.id)
                     .put("name", profile.name)
                     .put("baseUrl", profile.baseUrl)
-                    .put("token", profile.token),
+                    .put("token", profile.token)
+                    .put("deviceId", profile.deviceId)
+                    .put("libraryId", profile.libraryId),
             )
         }
         return array.toString()
@@ -95,6 +97,8 @@ class SecureProfileStore(context: Context) {
                         name = item.getString("name"),
                         baseUrl = item.getString("baseUrl"),
                         token = item.getString("token"),
+                        deviceId = item.optString("deviceId", item.getString("id")),
+                        libraryId = item.optString("libraryId").takeIf(String::isNotBlank),
                     ),
                 )
             }

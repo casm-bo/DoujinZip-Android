@@ -56,6 +56,15 @@ class LocalBackupTest {
         }
     }
 
+    @Test fun libraryScopeSurvivesUnpairingAndKeepsDifferentDatabasesSeparate() {
+        val base = InstrumentationRegistry.getInstrumentation().targetContext
+        IsolatedContext(base).use { context ->
+            assertEquals("old-device", BrowserPreferenceStore(context).rememberLibraryScope("library-a", "old-device"))
+            assertEquals("old-device", BrowserPreferenceStore(context).rememberLibraryScope("library-a", "new-device"))
+            assertEquals("library-b", BrowserPreferenceStore(context).rememberLibraryScope("library-b", "library-b"))
+        }
+    }
+
     @Test fun portableBackupRestoresSettingsTabsHistoryAndGalleryIdentityWithoutCredentials() {
         val base = InstrumentationRegistry.getInstrumentation().targetContext
         IsolatedContext(base).use { source -> IsolatedContext(base).use { target ->

@@ -154,8 +154,14 @@ class CompanionClient {
             PairingResult(
                 deviceId = device.getString("id"),
                 token = data.getString("token"),
+                libraryId = data.nullableString("libraryId"),
             )
         }
+
+    suspend fun getLibraryId(profile: DesktopProfile): String? = withContext(Dispatchers.IO) {
+        request("${profile.baseUrl}/v1/connection", token = profile.token)
+            .requireSuccess().nullableString("libraryId")
+    }
 
     suspend fun search(
         profile: DesktopProfile,

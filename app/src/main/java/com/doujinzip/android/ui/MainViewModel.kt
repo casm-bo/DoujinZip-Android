@@ -833,10 +833,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val result = client.pair(baseUrl, code, phoneDeviceName)
                 notifyOnDownloadReconnect = false
                 val profile = DesktopProfile(
-                    id = result.deviceId,
+                    id = result.libraryId?.let { browserPreferenceStore.rememberLibraryScope(it, it) } ?: result.deviceId,
                     name = profileName,
                     baseUrl = baseUrl,
                     token = result.token,
+                    deviceId = result.deviceId,
+                    libraryId = result.libraryId,
                 )
                 val profiles = listOf(profile)
                 profileStore.save(profiles)
@@ -1268,6 +1270,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val status = runCatching { client.getStatus(profile.baseUrl) }.getOrNull()
                 val connected = status != null
+                if (connected) {
+                    val libraryId = runCatching { client.getLibraryId(profile) }.getOrNull()
+                    if (selectedProfile() != profile) continue
+                    if (libraryId != null && libraryId != profile.libraryId) {
+                        val fallback = if (profile.libraryId == null) profile.id else libraryId
+                        val scope = browserPreferenceStore.rememberLibraryScope(libraryId, fallback)
+                        val updated = profile.copy(id = scope, libraryId = libraryId)
+                        profileStore.save(listOf(updated))
+                        uiState = uiState.copy(profiles = listOf(updated), selectedProfileId = scope)
+                        if (scope != profile.id) {
+                            reloadProfileLibrary()
+                            continue
+                        }
+                    }
+                }
                 if (connected && !wasDesktopConnected) {
                     requestReconnectLibraryRefresh()
                     refreshSubscriptions()
@@ -3677,7 +3694,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val page = runCatching { client.getBookStateChanges(profile, cursor) }
                     .getOrNull() ?: return@withLock
                 val remoteStates = page.changes.asSequence()
-                    .filterNot { it.deviceId == profile.id }
+                    .filterNot { it.deviceId == profile.deviceId }
                     .map { it.state }
                     .toList()
                 applySyncedBookStates(remoteStates, uiState.libraryBooks)
