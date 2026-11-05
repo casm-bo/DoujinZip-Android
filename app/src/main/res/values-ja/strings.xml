@@ -642,4 +642,7 @@
     <string name="feed_filter">購読フィルター</string>
     <string name="feed_new_items">新しい作品があります</string>
     <string name="ui_group_series">シリーズをまとめる</string>
+    <string name="ui_connect_refresh_before_edit">PCに接続して更新してから編集してください。</string>
+    <string name="ui_pc_edit_conflict">PCの情報が変更または削除されました。更新してから再度編集してください。</string>
+    <string name="ui_legacy_edits_saved">以前の未送信編集は端末に保存しました。PCへ自動上書きしません。</string>
 </resources>

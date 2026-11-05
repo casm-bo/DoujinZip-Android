@@ -418,11 +418,11 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
                 LocalReaderScreen(
                     sessionKey = sessionKey,
                     initialOffset = session?.position?.offset ?: 0,
-                    book = book,
+                    book = book?.takeUnless { it.isCloud && viewModel.uiState.desktopConnectionState != DesktopConnectionState.CONNECTED },
                     initialPage = session?.position?.page ?: if (requestedPage >= 0) requestedPage
                         else book?.let { viewModel.uiState.libraryProgress[it.id] } ?: 0,
                     isLoading = viewModel.uiState.isLibraryBookLoading,
-                    error = viewModel.uiState.libraryScanError,
+                    error = if (book?.isCloud == true && viewModel.uiState.desktopConnectionState != DesktopConnectionState.CONNECTED) androidx.compose.ui.platform.LocalResources.current.getString(R.string.msg_reconnect_to_desktop_and_retry) else viewModel.uiState.libraryScanError,
                     favorite = book?.id in viewModel.uiState.libraryFavoriteIds,
                     preferences = viewModel.uiState.viewerPreferences,
                     onBack = galleryBack,

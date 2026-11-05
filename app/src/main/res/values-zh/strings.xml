@@ -642,4 +642,7 @@
     <string name="feed_filter">订阅筛选</string>
     <string name="feed_new_items">有新作品</string>
     <string name="ui_group_series">按系列分组</string>
+    <string name="ui_connect_refresh_before_edit">请连接电脑并刷新后再编辑。</string>
+    <string name="ui_pc_edit_conflict">电脑上的信息已更改或删除，请刷新后重新编辑。</string>
+    <string name="ui_legacy_edits_saved">之前未发送的编辑已保存在设备上，不会自动覆盖电脑数据。</string>
 </resources>

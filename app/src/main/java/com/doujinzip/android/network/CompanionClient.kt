@@ -91,6 +91,15 @@ data class PresentationPage(val values: List<GalleryPresentation>, val cursor: L
 data class PresentationResult(val status: String, val value: GalleryPresentation)
 
 class CompanionClient {
+    suspend fun submitServerEdit(profile: DesktopProfile, kind: String, body: JSONObject): JSONObject = withContext(Dispatchers.IO) {
+        val path = when (kind) {
+            "state" -> "/v1/sync/changes"
+            "metadata" -> "/v1/library/presentations"
+            "series" -> "/v1/library/series"
+            else -> error("Unknown server edit")
+        }
+        request("${profile.baseUrl}$path", method = "POST", token = profile.token, body = body).requireSuccess()
+    }
     suspend fun getPresentations(profile: DesktopProfile, cursor: Long): PresentationPage = withContext(Dispatchers.IO) {
         val data = request("${profile.baseUrl}/v1/library/presentations?cursor=$cursor&limit=200", token = profile.token).requireSuccess()
         val values = data.getJSONArray("values")
@@ -666,7 +675,7 @@ data class SeriesSyncResult(
     val order: Int,
 )
 
-private fun JSONObject.toSyncedBookState(): SyncedBookState = SyncedBookState(
+internal fun JSONObject.toSyncedBookState(): SyncedBookState = SyncedBookState(
     bookSyncId = optString("syncId"),
     currentPage = optInt("currentPage", 0).coerceAtLeast(0),
     isFavorite = optBoolean("isFavorite", false),

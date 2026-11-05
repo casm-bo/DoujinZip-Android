@@ -642,4 +642,7 @@
     <string name="feed_filter">Subscriptions</string>
     <string name="feed_new_items">New items available</string>
     <string name="ui_group_series">Group series</string>
+    <string name="ui_connect_refresh_before_edit">Connect to the PC and refresh before editing.</string>
+    <string name="ui_pc_edit_conflict">PC data changed or no longer exists. Refresh and edit again.</string>
+    <string name="ui_legacy_edits_saved">Previous offline edits were preserved locally; they will not overwrite the PC.</string>
 </resources>

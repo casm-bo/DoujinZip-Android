@@ -34,6 +34,20 @@ class PresentationStore(private val identity: LibraryIdentityStore, private val 
         PresentationRecord(value.copy(version = base?.version ?: value.version, revision = base?.revision ?: value.revision),
             dirty = true, conflict = if (resolveConflict) null else previous?.conflict).also(::put)
     }
+    fun archiveOfflineEdits(): Boolean = transaction {
+        val db = identity.writableDatabase
+        db.execSQL("CREATE TABLE IF NOT EXISTS legacy_presentation_edits(resource_key TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+        val archived = all().filter { it.dirty || it.conflict != null }
+        for (record in archived) {
+            db.insertWithOnConflict("legacy_presentation_edits", null, ContentValues().apply {
+                put("resource_key", storageKey(record.value.key))
+                put("payload", JSONObject().put("value", record.value.toJson()).put("conflict", record.conflict?.toJson()).toString())
+            }, SQLiteDatabase.CONFLICT_IGNORE)
+            db.delete("gallery_presentations", "resource_key = ?", arrayOf(storageKey(record.value.key)))
+        }
+        if (archived.isNotEmpty()) profileId?.let { saveCursor(it, 0L) }
+        archived.isNotEmpty()
+    }
     fun pending(): List<PresentationRecord> = all().filter { it.dirty && it.conflict == null }
 
     fun reconcileIdenticalConflicts() = transaction {

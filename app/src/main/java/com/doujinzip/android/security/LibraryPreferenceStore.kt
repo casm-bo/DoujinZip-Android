@@ -15,6 +15,19 @@ import org.json.JSONObject
 class LibraryPreferenceStore(context: Context, fileName: String = FILE_NAME) {
     private val preferences = context.getSharedPreferences(fileName, Context.MODE_PRIVATE)
 
+    fun archiveOfflineEdits(profileId: String): Boolean {
+        val marker = "pc_authority_v1:$profileId"
+        if (preferences.getBoolean(marker, false)) return false
+        val pending = loadPendingBookStateSyncIds().isNotEmpty() || loadPendingSeriesSyncIds().isNotEmpty()
+        val backup = JSONObject()
+        preferences.all.forEach { (key, value) ->
+            if (!key.startsWith("pc_authority") && !key.startsWith("legacy_offline")) backup.put(key, if (value is Set<*>) org.json.JSONArray(value.toList()) else value)
+        }
+        check(preferences.edit().putString("legacy_offline:$profileId", backup.toString()).putBoolean(marker, true).commit())
+        savePendingBookStateSyncIds(emptySet())
+        savePendingSeriesSyncIds(emptySet())
+        return pending
+    }
     internal fun snapshot(): Map<String, *> = preferences.all
     internal fun matchesSnapshot(snapshot: Map<String, *>): Boolean = preferences.all == snapshot
 

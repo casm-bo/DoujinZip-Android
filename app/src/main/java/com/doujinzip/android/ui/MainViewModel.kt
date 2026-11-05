@@ -10,6 +10,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.doujinzip.android.BuildConfig
+import com.doujinzip.android.network.toSyncedBookState
+import com.doujinzip.android.data.toJson
 import com.doujinzip.android.data.matchesDeletedSubscription
 import com.doujinzip.android.data.DownloadRequest
 import com.doujinzip.android.data.SearchResultCache
@@ -264,6 +266,7 @@ data class MainUiState(
     val downloadQueueError: String? = null,
     val isDownloadConnectionUnavailable: Boolean = false,
     val activeDownloadActionIds: Set<Long> = emptySet(),
+    val desktopLibraryReady: Boolean = false,
     val desktopConnectionState: DesktopConnectionState = DesktopConnectionState.IDLE,
     val isBusy: Boolean = false,
     val message: String? = null,
@@ -594,25 +597,62 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun saveGalleryPresentation(value: GalleryPresentation, resolveConflict: Boolean = false) {
-        val profileId = uiState.selectedProfileId
-        viewModelScope.launch {
-            runOperation {
-                withContext(Dispatchers.IO) { presentationStore(profileId).saveLocal(value, resolveConflict) }
-                if (uiState.selectedProfileId == profileId) { reloadPresentations(); scheduleLibrarySync() }
+    private val serverEditMutex = kotlinx.coroutines.sync.Mutex()
+    private val serverEdits by lazy { com.doujinzip.android.data.ServerEditStore(getApplication()) }
+
+    private fun requireDesktopEdit(): DesktopProfile? {
+        val profile = selectedProfile()
+        if (profile == null || uiState.desktopConnectionState != DesktopConnectionState.CONNECTED || !uiState.desktopLibraryReady || uiState.isLibraryScanning) {
+            uiState = uiState.copy(message = strings[R.string.ui_connect_refresh_before_edit], isError = true)
+            return null
+        }
+        return profile
+    }
+    private fun submitServerEdit(kind: String, body: org.json.JSONObject) {
+        val profile = requireDesktopEdit() ?: return
+        val id = java.util.UUID.randomUUID().toString()
+        viewModelScope.launch { runOperation {
+            withContext(Dispatchers.IO) {
+                val arrayKey = when (kind) { "state" -> "mutations"; "series" -> "assignments"; else -> null }
+                val array = arrayKey?.let { body.getJSONArray(it) }
+                if (array == null || array.length() <= 100) serverEdits.put(profile.id, id, kind, body)
+                else (0 until array.length()).toList().chunked(100).forEachIndexed { index, chunk ->
+                    serverEdits.put(profile.id, "$id:$index", kind, org.json.JSONObject().put(arrayKey, org.json.JSONArray().apply { chunk.forEach { put(array.getJSONObject(it)) } }))
+                }
             }
+            try { replayServerEdits(profile) }
+            catch (error: Exception) {
+                if (error is CancellationException) throw error
+                uiState = uiState.copy(desktopLibraryReady = false, librarySyncError = error.message)
+                throw error
+            }
+            refreshLibrarySilently()
+        } }
+    }
+    private suspend fun replayServerEdits(profile: DesktopProfile) = serverEditMutex.withLock {
+        for ((id, request) in withContext(Dispatchers.IO) { serverEdits.pending(profile.id) }) {
+            val response = client.submitServerEdit(profile, request.getString("kind"), request.getJSONObject("body"))
+            val results = response.optJSONArray("results")
+            val statuses = com.doujinzip.android.data.validateServerEditResponse(request.getString("kind"), request.getJSONObject("body"), response)
+            if (results != null && request.getString("kind") == "state") {
+                val states = (0 until results.length()).mapNotNull { results.getJSONObject(it).optJSONObject("state")?.toSyncedBookState() }
+                if (profile.id == uiState.selectedProfileId) applySyncedBookStates(states, uiState.libraryBooks)
+            }
+            val state = results?.optJSONObject(0)?.optJSONObject("state")
+            if (state != null && statuses.firstOrNull() in setOf("applied", "duplicate")) withContext(Dispatchers.IO) { serverEdits.advanceProgress(id, request, state.getLong("version")) }
+            withContext(Dispatchers.IO) { serverEdits.remove(id, request) }
+            if (statuses.any { it == "conflict" || it == "not_found" }) uiState = uiState.copy(message = strings[R.string.ui_pc_edit_conflict], isError = true)
         }
     }
+    fun saveGalleryPresentation(value: GalleryPresentation, resolveConflict: Boolean = false) {
+        if (requireDesktopEdit() == null) return
+        val body = org.json.JSONObject().put("mutationId", java.util.UUID.randomUUID().toString()).put("baseVersion", value.version)
+            .put("value", value.toJson())
+        submitServerEdit("metadata", body)
+    }
     fun resolvePresentationConflict(record: com.doujinzip.android.data.PresentationRecord, usePhone: Boolean) {
-        val profileId = uiState.selectedProfileId
-        viewModelScope.launch {
-            runOperation {
-                presentationSyncMutex.withLock {
-                    withContext(Dispatchers.IO) { presentationStore(profileId).resolveConflict(record, usePhone) }
-                }
-                if (uiState.selectedProfileId == profileId) { reloadPresentations(); scheduleLibrarySync() }
-            }
-        }
+        if (usePhone) saveGalleryPresentation(record.value.copy(version = record.conflict?.version ?: record.value.version))
+        else acceptRemotePresentation(record.value.key)
     }
     fun classifyGallery(id: Long, mode: com.doujinzip.android.model.ViewerReadingMode) {
         uiState.galleryCache[id]?.presentation()?.let { recordReadingMode(it, mode) }
@@ -635,22 +675,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } }
     }
     fun changePresentationCover(value: GalleryPresentation, source: com.doujinzip.android.model.ReaderImageSource) {
-        val profileId = uiState.selectedProfileId
-        viewModelScope.launch {
-            runOperation {
-                val hash = presentationCovers.import(source)
-                withContext(Dispatchers.IO) {
-                    val store = presentationStore(profileId)
-                    val latest = store.get(value.key)?.value ?: value
-                    store.saveLocal(latest.copy(coverHash = hash))
-                }
-                if (uiState.selectedProfileId == profileId) { reloadPresentations(); scheduleLibrarySync() }
-            }
-        }
+        val profile = requireDesktopEdit() ?: return
+        viewModelScope.launch { runOperation {
+            val hash = presentationCovers.import(source)
+            client.transferCover(profile, hash, presentationCovers.bytes(hash))
+            if (profile.id == uiState.selectedProfileId) saveGalleryPresentation(value.copy(coverHash = hash))
+        } }
     }
     private suspend fun syncPresentations(profile: DesktopProfile) = presentationSyncMutex.withLock {
         try {
-            withContext(Dispatchers.IO) { PresentationSync(client, presentationStore(profile.id), presentationCovers).sync(profile) }
+            withContext(Dispatchers.IO) {
+                val store = presentationStore(profile.id)
+                val archived = store.archiveOfflineEdits() or libraryPreferenceStore.archiveOfflineEdits(profile.id)
+                if (archived) uiState = uiState.copy(message = strings[R.string.ui_legacy_edits_saved])
+                PresentationSync(client, store, presentationCovers).sync(profile)
+            }
             if (uiState.selectedProfileId == profile.id) uiState = uiState.copy(presentationSyncError = null)
         } catch (error: CancellationException) { throw error }
         catch (error: Exception) {
@@ -912,7 +951,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         importantLibraryRefreshJob?.cancel()
         libraryRefreshJob?.cancel()
         activeBookPreparationJob?.cancel()
-        uiState = uiState.copy(libraryBooks = emptyList(), activeLibraryBook = null, isLibraryScanning = false,
+        uiState = uiState.copy(desktopLibraryReady = false, libraryBooks = emptyList(), activeLibraryBook = null, isLibraryScanning = false,
             isLibraryBookLoading = false, isLibraryPullRefreshing = false, desktopLibraryLocations = emptyList(),
             desktopDownloadPath = null, galleryCache = emptyMap(), galleries = emptyList(), activeGallery = null,
             seriesPreviewLoadingIds = emptySet(), seriesPreviewErrors = emptyMap(), presentations = emptyMap(), presentationSyncError = null)
@@ -1002,6 +1041,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openLibraryReaderTab(bookId: String, startPage: Int) {
         val book = uiState.libraryBooks.firstOrNull { it.id == bookId } ?: return
+        if (book.isCloud && requireDesktopEdit() == null) return
         applyGalleryWorkspace(
             uiState.galleryWorkspace.openLibraryReader(BrowserPage.LibraryReader(
                 bookId = bookId,
@@ -1257,7 +1297,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     wasDesktopConnected = false
                     lastDesktopSyncGeneration = 0L
                     hasDesktopSyncGenerationBaseline = false
-                    uiState = uiState.copy(desktopConnectionState = DesktopConnectionState.IDLE)
+                    uiState = uiState.copy(desktopLibraryReady = false, desktopConnectionState = DesktopConnectionState.IDLE)
                     delay(CONNECTION_MONITOR_INTERVAL_MS)
                     continue
                 }
@@ -1304,6 +1344,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     drainBookStateChanges(profile)
                 }
                 wasDesktopConnected = connected
+                if (!connected) uiState = uiState.copy(desktopLibraryReady = false)
                 uiState = uiState.copy(
                     desktopConnectionState = if (connected) {
                         DesktopConnectionState.CONNECTED
@@ -1675,7 +1716,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
             val result = libraryScanner.scan(scannedLocations)
             if (!current()) return@launch
-            if (profile != null) { syncSubscriptions(profile); syncPresentations(profile) }
+            if (profile != null) {
+                runCatching { replayServerEdits(profile) }.onFailure {
+                    if (it is CancellationException) throw it
+                    uiState = uiState.copy(librarySyncError = it.message)
+                }
+                syncSubscriptions(profile); syncPresentations(profile)
+            }
             val cloudResult = profile?.let { runCatching { client.getLibraryBooks(it) } }
             if (!current()) return@launch
             if (cloudResult?.isSuccess == true) successfulDesktopRefreshes++
@@ -1775,6 +1822,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     StorageLocation(book.locationUri, book.locationName, isCloud = true)
                 },
                 desktopDownloadPath = desktopDownloadPath,
+                desktopLibraryReady = cloudResult?.isSuccess == true,
                 activeLibraryBook = refreshedActiveBook,
                 isLibraryBookLoading = refreshedActiveBook?.hasResolvedReaderPages() == false,
                 isLibraryScanning = false,
@@ -2030,6 +2078,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun commitLibrarySeriesEdit(name: String, baseline: Map<String, CustomSeriesAssignment>, orderedIds: List<String>): Boolean {
+        if (requireDesktopEdit() == null) return false
         if (uiState.isLibraryScanning || orderedIds.distinct().size != orderedIds.size || orderedIds.any { id -> uiState.libraryBooks.none { it.id == id } }) return false
         val current = uiState.customSeriesByBookId
         fun membership(values: Map<String, CustomSeriesAssignment>) = values.filterValues { it.name == name }.mapValues { it.value.order }
@@ -2037,10 +2086,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (orderedIds.any { id -> current[id]?.let { it.name to it.order } != baseline[id]?.let { it.name to it.order } }) return false
         val assignments = com.doujinzip.android.model.replaceSeriesMembers(current, name, orderedIds, System.currentTimeMillis())
         persistCustomSeries(assignments)
-        val favorites = if (orderedIds.isEmpty()) uiState.libraryFavoriteSeriesNames - name else uiState.libraryFavoriteSeriesNames
-        libraryPreferenceStore.saveFavoriteSeriesNames(favorites)
-        uiState = uiState.copy(customSeriesByBookId = assignments, libraryFavoriteSeriesNames = favorites)
-        if (orderedIds.isEmpty() && (uiState.galleryWorkspace.activeTab.currentPage as? BrowserPage.LibrarySeries)?.name == name) goBackInGalleryTab()
         return true
     }
 
@@ -2053,7 +2098,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             libraryScanError = null,
         )
         recordLibraryHistory(book)
-        enqueueBookStateSync(setOf(bookId), addHistory = uiState.historyRecording)
+
         prepareActiveLibraryBook(book)
         if (book.metadata.publishedDate == null) book.metadata.hitomiId?.toLongOrNull()?.let { id ->
             viewModelScope.launch {
@@ -2158,34 +2203,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun submitBookFields(ids: Set<String>, fields: org.json.JSONObject) {
+        if (requireDesktopEdit() == null) return
+        val books = uiState.libraryBooks.filter { it.id in ids }.distinctBy { it.syncId }
+        if (books.isEmpty() || books.any { it.syncId == null }) {
+            uiState = uiState.copy(message = strings[R.string.ui_connect_refresh_before_edit], isError = true)
+            return
+        }
+        val mutations = org.json.JSONArray()
+        books.forEach { book ->
+            val patch = org.json.JSONObject(fields.toString()).put("mutationId", java.util.UUID.randomUUID().toString())
+                .put("bookSyncId", book.syncId).put("baseVersion", book.syncStateVersion)
+            mutations.put(patch)
+        }
+        submitServerEdit("state", org.json.JSONObject().put("mutations", mutations))
+    }
     fun toggleLibraryFavorite(bookId: String) {
-        val relatedIds = if (bookId.startsWith("online:")) uiState.libraryBooks.filter { it.metadata.hitomiId == bookId.removePrefix("online:") }
-            .mapTo(linkedSetOf()) { it.id } + bookId else setOf(bookId)
-        val favorite = relatedIds.any { it in uiState.libraryFavoriteIds }
-        val ids = if (favorite) uiState.libraryFavoriteIds - relatedIds else uiState.libraryFavoriteIds + relatedIds
-        libraryPreferenceStore.saveFavoriteIds(ids)
-        uiState = uiState.copy(libraryFavoriteIds = ids)
-        enqueueBookStateSync(relatedIds)
+        submitBookFields(setOf(bookId), org.json.JSONObject().put("isFavorite", bookId !in uiState.libraryFavoriteIds))
     }
-
     fun toggleLibrarySeriesFavorite(seriesName: String) {
-        val names = uiState.libraryFavoriteSeriesNames.toMutableSet().apply {
-            if (!add(seriesName)) remove(seriesName)
-        }
-        libraryPreferenceStore.saveFavoriteSeriesNames(names)
-        uiState = uiState.copy(libraryFavoriteSeriesNames = names)
-        enqueueBookStateSync(
-            uiState.customSeriesByBookId.filterValues { it.name == seriesName }.keys,
-        )
+        submitBookFields(uiState.customSeriesByBookId.filterValues { it.name == seriesName }.keys,
+            org.json.JSONObject().put("seriesFavorite", seriesName !in uiState.libraryFavoriteSeriesNames))
     }
-
     fun toggleLibraryRead(bookId: String) {
-        val ids = uiState.libraryReadIds.toMutableSet().apply {
-            if (!add(bookId)) remove(bookId)
-        }
-        libraryPreferenceStore.saveReadIds(ids)
-        uiState = uiState.copy(libraryReadIds = ids)
-        enqueueBookStateSync(setOf(bookId))
+        submitBookFields(setOf(bookId), org.json.JSONObject().put("isRead", bookId !in uiState.libraryReadIds))
     }
 
     fun markOnlineRead(id: Long, read: Boolean) {
@@ -2194,26 +2235,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         uiState = uiState.copy(viewedGalleryIds = ids)
     }
 
-    fun addLibraryFavorites(bookIds: Set<String>) {
-        val ids = uiState.libraryFavoriteIds + bookIds
-        libraryPreferenceStore.saveFavoriteIds(ids)
-        uiState = uiState.copy(libraryFavoriteIds = ids)
-        enqueueBookStateSync(bookIds)
-    }
-
-    fun markLibraryBooksRead(bookIds: Set<String>) {
-        val ids = uiState.libraryReadIds + bookIds
-        libraryPreferenceStore.saveReadIds(ids)
-        uiState = uiState.copy(libraryReadIds = ids)
-        enqueueBookStateSync(bookIds)
-    }
-
-    fun markLibraryBooksUnread(bookIds: Set<String>) {
-        val ids = uiState.libraryReadIds - bookIds
-        libraryPreferenceStore.saveReadIds(ids)
-        uiState = uiState.copy(libraryReadIds = ids)
-        enqueueBookStateSync(bookIds)
-    }
+    fun addLibraryFavorites(bookIds: Set<String>) = submitBookFields(bookIds, org.json.JSONObject().put("isFavorite", true))
+    fun markLibraryBooksRead(bookIds: Set<String>) = submitBookFields(bookIds, org.json.JSONObject().put("isRead", true))
+    fun markLibraryBooksUnread(bookIds: Set<String>) = submitBookFields(bookIds, org.json.JSONObject().put("isRead", false))
 
     fun assignLibrarySeries(bookIds: Set<String>, seriesName: String) {
         val name = seriesName.trim()
@@ -2222,7 +2246,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val validIds = bookIds.intersect(uiState.libraryBooks.mapTo(hashSetOf()) { it.id })
         val assignments = com.doujinzip.android.model.appendSeriesMembers(uiState.customSeriesByBookId, validIds, name, System.currentTimeMillis())
         persistCustomSeries(assignments)
-        uiState = uiState.copy(customSeriesByBookId = assignments)
     }
 
     fun appendLibrarySeries(bookIds: Set<String>, name: String): Boolean {
@@ -2312,8 +2335,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val indexed = reindexSeriesAssignments(assignments)
                 persistCustomSeries(indexed)
                 uiState = uiState.copy(
-                    customSeriesByBookId = indexed,
-                    message = strings[R.string.msg_generated_series, (groups.size)],
+                    message = null,
                     isError = false,
                 )
             } catch (error: Exception) {
@@ -2327,21 +2349,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun setLibraryBooksHidden(bookIds: Set<String>, hidden: Boolean) {
-        val updated = if (hidden) uiState.libraryHiddenIds + bookIds else uiState.libraryHiddenIds - bookIds
-        libraryPreferenceStore.saveHiddenIds(updated)
-        if (hidden && uiState.activeLibraryBook?.id in bookIds) {
-            libraryPreferenceStore.saveActiveBookId(null)
-            activeBookPreparationJob?.cancel()
-        }
-        uiState = uiState.copy(
-            libraryHiddenIds = updated,
-            activeLibraryBook = uiState.activeLibraryBook?.takeUnless { hidden && it.id in bookIds },
-            message = if (hidden) strings[R.string.msg_selected_galleries_hidden] else strings[R.string.msg_selected_galleries_unhidden],
-            isError = false,
-        )
-        enqueueBookStateSync(bookIds)
-    }
+    fun setLibraryBooksHidden(bookIds: Set<String>, hidden: Boolean) = submitBookFields(bookIds, org.json.JSONObject().put("isHidden", hidden))
 
     fun deleteLibraryBooks(bookIds: Set<String>) {
         if (bookIds.isEmpty()) return
@@ -2424,19 +2432,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val normalized = title.trim()
         if (normalized.isEmpty() || normalized.length > 500) return
         uiState.libraryBooks.firstOrNull { it.id == bookId }?.let { book ->
-            runCatching { book.presentation().copy(title = normalized) }.getOrNull()?.let(::saveGalleryPresentation)
+            saveGalleryPresentation(book.presentation().copy(title = normalized))
         }
-        val titles = libraryPreferenceStore.loadCustomTitles() + (bookId to normalized)
-        libraryPreferenceStore.saveCustomTitles(titles)
-        uiState = uiState.copy(
-            libraryBooks = uiState.libraryBooks.map {
-                if (it.id == bookId) it.copy(title = normalized, originalTitle = normalized) else it
-            },
-            activeLibraryBook = uiState.activeLibraryBook?.let {
-                if (it.id == bookId) it.copy(title = normalized, originalTitle = normalized) else it
-            },
-        )
-        enqueueBookStateSync(setOf(bookId))
     }
 
     fun removeLibraryBooksFromSeries(bookIds: Set<String>) {
@@ -2448,7 +2445,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             modifiedAt,
         )
         persistCustomSeries(assignments)
-        uiState = uiState.copy(customSeriesByBookId = assignments)
     }
 
     fun renameLibrarySeries(oldName: String, newName: String) {
@@ -2467,17 +2463,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         val assignments = reindexSeriesAssignments(renamed)
         persistCustomSeries(assignments)
-        val favorites = uiState.libraryFavoriteSeriesNames.toMutableSet().apply {
-            if (remove(oldName)) add(normalized)
-        }
-        libraryPreferenceStore.saveFavoriteSeriesNames(favorites)
-        uiState = uiState.copy(
-            customSeriesByBookId = assignments,
-            libraryFavoriteSeriesNames = favorites,
-        )
-        val workspace = uiState.galleryWorkspace.renameSeriesPages(oldName, normalized)
-        if (workspace != uiState.galleryWorkspace) applyGalleryWorkspace(workspace)
-        copySeriesPresentation(oldName, normalized)
     }
 
     private fun copySeriesPresentation(oldName: String, newName: String) {
@@ -2524,17 +2509,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             modifiedAt,
         )
         persistCustomSeries(indexed)
-        val keepFavorite = names.firstOrNull() in uiState.libraryFavoriteSeriesNames
-        val favorites = uiState.libraryFavoriteSeriesNames.toMutableSet().apply {
-            removeAll(names.toSet())
-            if (keepFavorite) add(name)
-        }
-        libraryPreferenceStore.saveFavoriteSeriesNames(favorites)
-        uiState = uiState.copy(
-            customSeriesByBookId = indexed,
-            libraryFavoriteSeriesNames = favorites,
-        )
-        copySeriesPresentation(names.first(), name)
     }
 
     fun deleteLibrarySeries(names: Set<String>) {
@@ -2542,12 +2516,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             uiState.customSeriesByBookId.filterValues { it.name !in names },
         )
         persistCustomSeries(assignments)
-        val favorites = uiState.libraryFavoriteSeriesNames - names
-        libraryPreferenceStore.saveFavoriteSeriesNames(favorites)
-        uiState = uiState.copy(
-            customSeriesByBookId = assignments,
-            libraryFavoriteSeriesNames = favorites,
-        )
     }
 
     fun nextLibrarySeriesBook(bookId: String): LibraryBook? {
@@ -2593,6 +2561,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun updateLibraryProgress(bookId: String, page: Int) {
         val normalizedPage = page.coerceAtLeast(0)
         val book = uiState.libraryBooks.firstOrNull { it.id == bookId }
+        if (book?.isCloud == true) {
+            val profile = selectedProfile() ?: return
+            val syncId = book.syncId ?: return
+            if (uiState.libraryProgress[bookId] == normalizedPage) return
+            libraryPreferenceStore.saveBookProgress(bookId, normalizedPage)
+            uiState = uiState.copy(libraryProgress = uiState.libraryProgress + (bookId to normalizedPage))
+            val mutation = org.json.JSONObject().put("mutationId", java.util.UUID.randomUUID().toString())
+                .put("bookSyncId", syncId).put("baseVersion", book.syncStateVersion).put("currentPage", normalizedPage)
+            if (reachedLastPage(normalizedPage, book.pages.size)) mutation.put("isRead", true)
+            if (uiState.historyRecording) mutation.put("historyEvent", org.json.JSONObject().put("eventId", java.util.UUID.randomUUID().toString()).put("viewedAt", java.time.Instant.now().toString()).put("currentPage", normalizedPage))
+            viewModelScope.launch {
+                withContext(Dispatchers.IO) { serverEdits.put(profile.id, "progress:${profile.id}:$syncId", "state", org.json.JSONObject().put("mutations", org.json.JSONArray().put(mutation))) }
+                scheduleLibrarySync()
+            }
+            return
+        }
         val readIds = if (reachedLastPage(normalizedPage, book?.pages?.size ?: 0)) {
             uiState.libraryReadIds + bookId
         } else {
@@ -2604,7 +2588,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         libraryPreferenceStore.saveBookProgress(bookId, normalizedPage)
         if (readIds != uiState.libraryReadIds) libraryPreferenceStore.saveReadIds(readIds)
         uiState = uiState.copy(libraryProgress = progress, libraryReadIds = readIds)
-        enqueueBookStateSync(setOf(bookId))
     }
 
     private fun ensureValidSeriesName(name: String): Boolean {
@@ -3394,29 +3377,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun persistCustomSeries(assignments: Map<String, CustomSeriesAssignment>) {
-        libraryPreferenceStore.saveCustomSeries(assignments)
-        val changedIds = (uiState.customSeriesByBookId.keys + assignments.keys).filterTo(linkedSetOf()) {
-            uiState.customSeriesByBookId[it] != assignments[it]
+        if (requireDesktopEdit() == null) return
+        val changed = (uiState.customSeriesByBookId.keys + assignments.keys).filter { uiState.customSeriesByBookId[it] != assignments[it] }
+        val patches = org.json.JSONArray()
+        for (id in changed) {
+            val book = uiState.libraryBooks.firstOrNull { it.id == id } ?: continue
+            if (book.syncId == null) { uiState = uiState.copy(message = strings[R.string.ui_connect_refresh_before_edit], isError = true); return }
+            val assignment = assignments[id]
+            patches.put(org.json.JSONObject().put("mutationId", java.util.UUID.randomUUID().toString()).put("bookSyncId", book.syncId)
+                .put("baseVersion", book.syncStateVersion).put("name", assignment?.name ?: org.json.JSONObject.NULL)
+                .put("order", assignment?.order ?: 0).put("modifiedAt", System.currentTimeMillis()))
         }
-        if (changedIds.isEmpty()) return
-        val now = System.currentTimeMillis()
-        val removalTimes = libraryPreferenceStore.loadSeriesRemovalTimes().toMutableMap()
-        changedIds.forEach { id ->
-            if (id in assignments) removalTimes.remove(id) else removalTimes[id] = now
-        }
-        libraryPreferenceStore.saveSeriesRemovalTimes(removalTimes)
-        val syncableIds = uiState.libraryBooks.asSequence()
-            .filter { it.id in changedIds && it.syncId != null }
-            .mapTo(linkedSetOf(), LibraryBook::id)
-        if (syncableIds.isNotEmpty()) {
-            libraryPreferenceStore.savePendingSeriesSyncIds(
-                libraryPreferenceStore.loadPendingSeriesSyncIds() + syncableIds,
-            )
-        }
-        scheduleLibrarySync()
+        if (patches.length() > 0) submitServerEdit("series", org.json.JSONObject().put("assignments", patches))
     }
 
-    private fun pendingLibrarySyncCount(): Int = distinctPendingSyncCount(
+    private fun pendingLibrarySyncCount(): Int = (selectedProfile()?.let { serverEdits.pending(it.id).size } ?: 0) + distinctPendingSyncCount(
         libraryPreferenceStore.loadPendingSeriesSyncIds(),
         libraryPreferenceStore.loadPendingBookStateSyncIds(),
         uiState.libraryBooks,
@@ -3490,67 +3465,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         librarySyncDebounceJob?.cancel()
         librarySyncDebounceJob = viewModelScope.launch {
             delay(delayMs)
-            flushPendingLibrarySync()
+            try { flushPendingLibrarySync() }
+            catch (error: Exception) {
+                if (error is CancellationException) throw error
+                uiState = uiState.copy(desktopLibraryReady = false, librarySyncError = error.message)
+            }
         }
     }
 
-    private suspend fun flushPendingLibrarySync(
-        profileOverride: DesktopProfile? = null,
-        booksOverride: List<LibraryBook>? = null,
-    ) = librarySyncFlushMutex.withLock {
+    private suspend fun flushPendingLibrarySync(profileOverride: DesktopProfile? = null, booksOverride: List<LibraryBook>? = null) = librarySyncFlushMutex.withLock {
         val profile = profileOverride ?: selectedProfile() ?: return@withLock
+        if (uiState.desktopConnectionState != DesktopConnectionState.CONNECTED) return@withLock
+        replayServerEdits(profile)
         syncSubscriptions(profile)
         syncPresentations(profile)
-        if (uiState.isLibraryScanning && booksOverride == null) {
-            scheduleLibrarySync(LIBRARY_SYNC_SCAN_RETRY_MS)
-            return@withLock
-        }
-        val books = booksOverride ?: uiState.libraryBooks
-        val pendingSeriesIds = libraryPreferenceStore.loadPendingSeriesSyncIds()
-        val pendingBookIds = libraryPreferenceStore.loadPendingBookStateSyncIds()
-        if (pendingSeriesIds.isEmpty() && pendingBookIds.isEmpty()) return@withLock
-        val uploadFailures = uploadMissingLocalBooks(profile, books, pendingSeriesIds + pendingBookIds)
-        if (uploadFailures.isNotEmpty()) {
-            uiState = uiState.copy(
-                librarySyncError = uploadFailures.joinToString("\n"),
-                message = strings[R.string.msg_could_not_transfer_local_files_to_desktop, (uploadFailures.size)],
-                isError = true,
-            )
-        }
-        if (pendingSeriesIds.isNotEmpty()) {
-            syncSeriesUpdates(
-                profile = profile,
-                books = books,
-                assignments = libraryPreferenceStore.loadCustomSeries(),
-                removalTimes = libraryPreferenceStore.loadSeriesRemovalTimes(),
-                ids = pendingSeriesIds,
-                uploadLocalBooks = false,
-            )
-        }
-        if (pendingBookIds.isNotEmpty()) {
-            val historyIds = pendingBookIds.filterTo(linkedSetOf()) { it in pendingHistoryBookIds }
-            if (historyIds.isNotEmpty()) {
-                val completedHistoryIds = syncBookStateUpdates(
-                    profile,
-                    books,
-                    historyIds,
-                    addHistory = true,
-                    uploadLocalBooks = false,
-                )
-                pendingHistoryBookIds -= completedHistoryIds
-            }
-            val remainingIds = libraryPreferenceStore.loadPendingBookStateSyncIds() -
-                pendingHistoryBookIds
-            if (remainingIds.isNotEmpty()) {
-                syncBookStateUpdates(profile, books, remainingIds, uploadLocalBooks = false)
-            }
-        }
-        if (uploadFailures.isEmpty() && pendingLibrarySyncCount() == 0) {
-            uiState = uiState.copy(
-                librarySyncError = null,
-                libraryLastSyncedAt = System.currentTimeMillis(),
-            )
-        }
     }
 
     private data class BookStateSyncAttempt(
@@ -3929,11 +3857,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             uiState = uiState.copy(isLibrarySyncing = true, librarySyncError = null)
             try {
                 val downloadErrors = sendPendingDownloadRequests(profile)
-                val queuedIds = libraryPreferenceStore.loadPendingSeriesSyncIds() + libraryPreferenceStore.loadPendingBookStateSyncIds()
                 flushPendingLibrarySync(profile, uiState.libraryBooks)
-                val remainingIds = uiState.libraryBooks.asSequence().mapTo(linkedSetOf(), LibraryBook::id) - queuedIds
-                val failures = uploadMissingLocalBooks(profile, uiState.libraryBooks, remainingIds)
-                val errors = downloadErrors + failures + listOfNotNull(uiState.subscriptionSyncError)
+                val errors = downloadErrors + listOfNotNull(uiState.subscriptionSyncError)
                 if (errors.isNotEmpty()) uiState = uiState.copy(librarySyncError = errors.joinToString("\n"),
                     message = strings[R.string.msg_some_items_could_not_sync_check_the_pending_list], isError = true)
                 if (errors.isEmpty() && uiState.librarySyncError == null && uiState.presentationSyncError == null && pendingLibrarySyncCount() == 0) {
