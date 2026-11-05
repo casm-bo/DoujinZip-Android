@@ -7,6 +7,12 @@ internal data class AppChangelog(
 
 internal val appChangelog = listOf(
     AppChangelog(
+        version = "1.4.1",
+        changes = listOf(
+            "[UI 개선] 검색·구독 언어 목록을 한국어·일본어·영어·중국어 우선으로 표시하고, 나머지는 이름순으로 정렬합니다.",
+        ),
+    ),
+    AppChangelog(
         version = "1.4.0",
         changes = listOf(
             "[동기화·백업] 같은 PC DB 재연결 시 기존 저장 범위를 재사용하고, 구독 충돌과 백업 중복 처리를 개선했습니다.",
