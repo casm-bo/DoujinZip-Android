@@ -88,7 +88,7 @@ internal class LocalBackupStore(private val context: Context) {
             }
         }
         val presentations = JSONArray(presentationsByKey.values.map { it.toJson() })
-        val subscriptions = JSONArray()
+        val subscriptions = linkedSetOf<SearchSubscription>()
         val notices = JSONObject()
         SubscriptionStore(context).use { store ->
             rows(store.readableDatabase, "subscriptions").objects().forEach { row ->
@@ -100,7 +100,7 @@ internal class LocalBackupStore(private val context: Context) {
                 }
                 if (subscription.deleted && row.isNull("mutation")) return@forEach
                 if (profileId == null || row.getString("scope") != profileId || !row.isNull("mutation")) {
-                    subscriptions.put(subscription.copy(version = 0).json())
+                    subscriptions.add(subscription.copy(version = 0))
                 }
             }
             // Notification matches/read receipts are local UI data, not a server subscription definition.
@@ -116,7 +116,7 @@ internal class LocalBackupStore(private val context: Context) {
             .put("createdAt", System.currentTimeMillis()).put("serverDataExcluded", profileId != null)
             .put("lastSyncAt", BrowserPreferenceStore(context).loadLastDesktopSync()).put("locale", locale)
             .put("preferences", preferences).put("identities", identities).put("presentations", presentations)
-            .put("subscriptions", subscriptions).put("notices", notices), images).also(::validate)
+            .put("subscriptions", JSONArray(subscriptions.map { it.json() })).put("notices", notices), images).also(::validate)
     }
 
     fun validate(archive: BackupArchive) {

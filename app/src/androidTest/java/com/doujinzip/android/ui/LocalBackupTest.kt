@@ -143,6 +143,28 @@ class LocalBackupTest {
         }
     }
 
+    @Test fun backupCombinesIdenticalSubscriptionsFromPreviousProfiles() {
+        val base = InstrumentationRegistry.getInstrumentation().targetContext
+        IsolatedContext(base).use { context ->
+            val value = SearchSubscription(id = "fixture", name = "Fixture", query = "artist:fixture")
+            SubscriptionStore(context).use { store ->
+                store.receive("previous-pc", value.copy(version = 1))
+                store.receive("another-pc", value.copy(version = 2))
+                val backup = LocalBackupStore(context)
+                val archive = backup.capture(emptySet(), "current-pc", "ko")
+                val subscriptions = archive.data.getJSONArray("subscriptions")
+                assertEquals(1, subscriptions.length())
+                assertEquals(value, SearchSubscription.fromJson(subscriptions.getJSONObject(0)))
+
+                store.receive("another-pc", value.copy(enabled = true, version = 3))
+                val failure = assertThrows(IllegalArgumentException::class.java) {
+                    backup.capture(emptySet(), "current-pc", "ko")
+                }
+                assertEquals("Duplicate local subscription", failure.message)
+            }
+        }
+    }
+
     @Test fun backupSkipsOnlyMatchingDeletedSubscriptionConflicts() {
         val base = InstrumentationRegistry.getInstrumentation().targetContext
         IsolatedContext(base).use { context ->
