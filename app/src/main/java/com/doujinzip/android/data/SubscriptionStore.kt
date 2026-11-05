@@ -114,6 +114,7 @@ class SubscriptionStore internal constructor(context: Context, databaseName: Str
             mutationId != null && old != null && value.version >= old.value.version -> put(scope,old.value.copy(version=value.version),old.mutationId,old.conflict)
             old == null -> put(scope,value,null)
             value.version <= maxOf(old.value.version, old.conflict?.version ?: 0) -> Unit
+            old.value.copy(version = value.version) == value -> put(scope, value, null)
             old.mutationId != null -> put(scope,old.value,old.mutationId,value)
             else -> {
                 put(scope,value,null)
@@ -123,8 +124,25 @@ class SubscriptionStore internal constructor(context: Context, databaseName: Str
     }
     @Synchronized fun conflict(scope: String, id: String, remote: SearchSubscription) {
         val old = records(scope).find { it.value.id == id } ?: return
-        put(scope,old.value,old.mutationId,remote)
+        if (old.value.id == remote.id && remote.version < maxOf(old.value.version, old.conflict?.version ?: 0)) return
+        if (old.value.copy(version = remote.version) == remote) put(scope, remote, null)
+        else put(scope,old.value,old.mutationId,remote)
     }
+
+    @Synchronized fun reconcileMatchingConflicts() = transaction {
+        val scopes = readableDatabase.rawQuery(
+            "SELECT DISTINCT scope FROM subscriptions WHERE conflict IS NOT NULL", null,
+        ).use { cursor -> buildList { while (cursor.moveToNext()) add(cursor.getString(0)) } }
+        for (scope in scopes) {
+            for (record in records(scope)) {
+                val remote = record.conflict ?: continue
+                if (remote.version >= record.value.version && record.value.copy(version = remote.version) == remote) {
+                    put(scope, remote, null)
+                }
+            }
+        }
+    }
+
     @Synchronized fun resolve(scope: String, id: String, keepPhone: Boolean) = transaction {
         val old = records(scope).find { it.value.id == id } ?: return@transaction
         val remote = old.conflict ?: return@transaction

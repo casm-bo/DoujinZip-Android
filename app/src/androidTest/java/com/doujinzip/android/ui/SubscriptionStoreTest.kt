@@ -63,6 +63,42 @@ class SubscriptionStoreTest {
             assertNull(store.records("pc").single().conflict)
         }
     }
+    @Test fun matchingChangesAcceptRemoteVersionButDifferentEditsStillConflict() {
+        SubscriptionStore(context, null).use { store ->
+            val value = SearchSubscription(id = "fixture", name = "Example", query = "tag:example")
+            store.save("pc", value)
+            store.receive("pc", value.copy(version = 2))
+            assertEquals(2L, store.records("pc").single().value.version)
+            assertNull(store.records("pc").single().mutationId)
+
+            store.save("pc", value.copy(enabled = true))
+            store.conflict("pc", value.id, value.copy(enabled = true, version = 3))
+            assertEquals(3L, store.records("pc").single().value.version)
+            assertNull(store.records("pc").single().mutationId)
+
+            store.save("pc", value.copy(name = "Phone"))
+            store.conflict("pc", value.id, value.copy(name = "PC", version = 4))
+            assertEquals("Phone", store.records("pc").single().value.name)
+            assertEquals("PC", store.records("pc").single().conflict?.name)
+        }
+    }
+
+    @Test fun matchingStoredConflictsReconcileInInactiveScopes() {
+        SubscriptionStore(context, null).use { store ->
+            val value = SearchSubscription(id = "fixture", name = "Example", query = "tag:example")
+            store.save("previous-pc", value)
+            store.writableDatabase.execSQL(
+                "UPDATE subscriptions SET conflict=? WHERE scope=? AND id=?",
+                arrayOf(value.copy(version = 2).json().toString(), "previous-pc", value.id),
+            )
+            store.reconcileMatchingConflicts()
+            val record = store.records("previous-pc").single()
+            assertEquals(2L, record.value.version)
+            assertNull(record.conflict)
+            assertNull(record.mutationId)
+        }
+    }
+
     @Test fun notificationsAndPendingEditsSurviveDatabaseReopen() {
         val name="subscription-test-${System.nanoTime()}.db"
         try {

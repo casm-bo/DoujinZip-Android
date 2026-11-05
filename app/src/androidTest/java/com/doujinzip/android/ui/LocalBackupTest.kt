@@ -128,11 +128,16 @@ class LocalBackupTest {
             val phone = SearchSubscription(id = "fixture", name = "Fixture", query = "artist:fixture", deleted = true)
             SubscriptionStore(context).use { store ->
                 store.save(scope, phone)
-                store.conflict(scope, phone.id, phone.copy(version = 2))
+                store.writableDatabase.execSQL(
+                    "UPDATE subscriptions SET conflict=? WHERE scope=? AND id=?",
+                    arrayOf(phone.copy(version = 2).json().toString(), scope, phone.id),
+                )
                 val backup = LocalBackupStore(context)
                 val archive = backup.capture(emptySet(), "active-fixture", "ko")
                 assertEquals(0, archive.data.getJSONArray("subscriptions").length())
                 assertNotNull(store.records(scope).single().conflict)
+                store.reconcileMatchingConflicts()
+                assertEquals(0, backup.capture(emptySet(), "active-fixture", "ko").data.getJSONArray("subscriptions").length())
 
                 for (remote in listOf(phone.copy(deleted = false), phone.copy(id = "another"), phone.copy(query = "artist:another"))) {
                     store.conflict(scope, phone.id, remote.copy(version = 2))

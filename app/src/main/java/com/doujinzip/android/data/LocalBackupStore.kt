@@ -94,6 +94,7 @@ internal class LocalBackupStore(private val context: Context) {
                     require(subscription.matchesDeletedSubscription(remote)) { "Resolve subscription conflicts before backup" }
                     return@forEach
                 }
+                if (subscription.deleted && row.isNull("mutation")) return@forEach
                 if (profileId == null || row.getString("scope") != profileId || !row.isNull("mutation")) {
                     subscriptions.put(subscription.copy(version = 0).json())
                 }

@@ -8,6 +8,7 @@ import kotlinx.coroutines.sync.withLock
 
 class SubscriptionSync(private val store: SubscriptionStore, private val client: CompanionClient = CompanionClient()) {
     suspend fun sync(profile: DesktopProfile): Unit = mutex.withLock {
+        store.reconcileMatchingConflicts()
         val scope = profile.id
         // Retry receipts before pulling; a lost acknowledgement is not a concurrent PC edit.
         for(record in store.records(scope).filter { it.mutationId != null && it.conflict == null }) {
