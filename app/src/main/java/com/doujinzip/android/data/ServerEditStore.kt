@@ -17,13 +17,15 @@ class ServerEditStore(context: Context) {
     @Synchronized fun remove(id: String, expected: JSONObject) {
         if (preferences.getString(id, null) == expected.toString()) check(preferences.edit().remove(id).commit())
     }
-    @Synchronized fun advanceProgress(id: String, sent: JSONObject, version: Long) {
+    @Synchronized fun advanceProgress(id: String, sent: JSONObject, state: JSONObject) {
         val current = preferences.getString(id, null)?.let(::JSONObject) ?: return
         if (!id.startsWith("progress:") || current.toString() == sent.toString()) return
         val pending = current.getJSONObject("body").getJSONArray("mutations").getJSONObject(0)
         val previous = sent.getJSONObject("body").getJSONArray("mutations").getJSONObject(0)
         if (pending.getLong("baseVersion") == previous.getLong("baseVersion")) {
-            pending.put("baseVersion", version)
+            pending.put("baseVersion", state.getLong("version"))
+            pending.put("baseCurrentPage", state.getInt("currentPage"))
+            pending.put("baseIsRead", state.getBoolean("isRead"))
             check(preferences.edit().putString(id, current.toString()).commit())
         }
     }

@@ -7,6 +7,21 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PresentationStoreTest {
+    @Test fun completePcSnapshotRemovesStaleOverridesAndAcceptsRestoredVersions() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val name = "pc-snapshot-${System.nanoTime()}.db"
+        try { LibraryIdentityStore(context, name).use { identity ->
+            val store = PresentationStore(identity, "synthetic-pc")
+            val old = GalleryPresentation("hitomi:42", "Stale title", LibraryMetadata(), version = 12, revision = 12)
+            store.receive(old)
+            store.receive(old.copy(key = "hitomi:43"))
+            val restored = old.copy(title = "Restored PC title", version = 2, revision = 2)
+            store.replaceConfirmedSnapshot(listOf(restored), 2)
+            assertEquals(restored, store.get(old.key)?.value)
+            assertNull(store.get("hitomi:43"))
+            assertEquals(2L, store.cursor("synthetic-pc"))
+        } } finally { context.deleteDatabase(name) }
+    }
     @Test fun conflictChoiceCannotOverwriteAnEditMadeAfterThePopupOpened() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val name = "conflict-choice-${System.nanoTime()}.db"

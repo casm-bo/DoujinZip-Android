@@ -23,9 +23,8 @@ class LibraryPreferenceStore(context: Context, fileName: String = FILE_NAME) {
         preferences.all.forEach { (key, value) ->
             if (!key.startsWith("pc_authority") && !key.startsWith("legacy_offline")) backup.put(key, if (value is Set<*>) org.json.JSONArray(value.toList()) else value)
         }
-        check(preferences.edit().putString("legacy_offline:$profileId", backup.toString()).putBoolean(marker, true).commit())
-        savePendingBookStateSyncIds(emptySet())
-        savePendingSeriesSyncIds(emptySet())
+        check(preferences.edit().putString("legacy_offline:$profileId", backup.toString()).putBoolean(marker, true)
+            .putStringSet(KEY_PENDING_BOOK_STATE_SYNC, emptySet()).putStringSet(KEY_PENDING_SERIES_SYNC, emptySet()).commit())
         return pending
     }
     internal fun snapshot(): Map<String, *> = preferences.all

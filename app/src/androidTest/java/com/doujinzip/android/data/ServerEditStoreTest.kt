@@ -15,7 +15,7 @@ class ServerEditStoreTest {
         store.put(profile, id, "state", body("first", 3))
         val sent = ServerEditStore(context).pending(profile).single { it.first == id }.second
         store.put(profile, id, "state", body("second", 4))
-        store.advanceProgress(id, sent, 3)
+        store.advanceProgress(id, sent, JSONObject("""{"version":3,"currentPage":3,"isRead":false}"""))
         store.remove(id, sent)
         val newer = store.pending(profile).single { it.first == id }.second
         val patch = newer.getJSONObject("body").getJSONArray("mutations").getJSONObject(0)

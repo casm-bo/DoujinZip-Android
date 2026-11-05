@@ -605,7 +605,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun requireDesktopEdit(): DesktopProfile? {
         val profile = selectedProfile()
-        if (profile == null || uiState.desktopConnectionState != DesktopConnectionState.CONNECTED || !uiState.desktopLibraryReady || uiState.isLibraryScanning) {
+        if (profile == null || uiState.desktopConnectionState != DesktopConnectionState.CONNECTED || !uiState.desktopLibraryReady || uiState.presentationSyncError != null || uiState.isLibraryScanning) {
             uiState = uiState.copy(message = strings[R.string.ui_connect_refresh_before_edit], isError = true)
             return null
         }
@@ -642,7 +642,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (profile.id == uiState.selectedProfileId) applySyncedBookStates(states, uiState.libraryBooks)
             }
             val state = results?.optJSONObject(0)?.optJSONObject("state")
-            if (state != null && statuses.firstOrNull() in setOf("applied", "duplicate")) withContext(Dispatchers.IO) { serverEdits.advanceProgress(id, request, state.getLong("version")) }
+            if (state != null && statuses.firstOrNull() in setOf("applied", "duplicate")) withContext(Dispatchers.IO) { serverEdits.advanceProgress(id, request, state) }
             withContext(Dispatchers.IO) { serverEdits.remove(id, request) }
             if (statuses.any { it == "conflict" || it == "not_found" }) uiState = uiState.copy(message = strings[R.string.ui_pc_edit_conflict], isError = true)
         }
@@ -710,8 +710,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } catch (error: CancellationException) { throw error }
         catch (error: Exception) {
             if (uiState.selectedProfileId == profile.id) {
-                val hasEdits = withContext(Dispatchers.IO) { presentationStore(profile.id).all().any { it.dirty } }
-                uiState = uiState.copy(presentationSyncError = if (hasEdits) error.message else null)
+                uiState = uiState.copy(presentationSyncError = error.message ?: strings[R.string.ui_connect_refresh_before_edit])
             }
         }
         if (uiState.selectedProfileId == profile.id) reloadPresentations()
@@ -2221,6 +2220,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 .onFailure { error ->
                     if (generation == libraryProfileGeneration && uiState.activeLibraryBook?.id == book.id) {
+                        if (book.isCloud) requestImportantLibraryRefresh()
                         uiState = uiState.copy(
                             isLibraryBookLoading = false,
                             libraryScanError = error.message ?: if (book.isCloud) {
@@ -2435,6 +2435,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     .onFailure { failures += "${book.title}: ${it.message ?: strings[R.string.msg_deletion_failed]}" }
             }
             if (deletedIds.isNotEmpty()) removeDeletedLibraryState(deletedIds)
+            if (remoteBooks.isNotEmpty()) refreshLibrarySilently()
             val details = buildList {
                 if (remoteBooks.any { it.id in deletedIds }) {
                     add(strings[R.string.msg_desktop_galleries_moved_to_trash_and_removed_from_the])
@@ -2489,7 +2490,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val normalized = title.trim()
         if (normalized.isEmpty() || normalized.length > 500) return
         uiState.libraryBooks.firstOrNull { it.id == bookId }?.let { book ->
-            saveGalleryPresentation(book.presentation().copy(title = normalized))
+            val base = uiState.presentations[book.presentationKey()]?.value ?: book.presentation()
+            saveGalleryPresentation(base.copy(title = normalized))
         }
     }
 
@@ -2625,7 +2627,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             libraryPreferenceStore.saveBookProgress(bookId, normalizedPage)
             uiState = uiState.copy(libraryProgress = uiState.libraryProgress + (bookId to normalizedPage))
             val mutation = org.json.JSONObject().put("mutationId", java.util.UUID.randomUUID().toString())
-                .put("bookSyncId", syncId).put("baseVersion", book.syncStateVersion).put("currentPage", normalizedPage)
+                .put("bookSyncId", syncId).put("baseVersion", book.syncStateVersion).put("baseCurrentPage", book.syncedProgress).put("baseIsRead", book.syncedRead).put("currentPage", normalizedPage)
             if (reachedLastPage(normalizedPage, book.pages.size)) mutation.put("isRead", true)
             if (uiState.historyRecording) mutation.put("historyEvent", org.json.JSONObject().put("eventId", java.util.UUID.randomUUID().toString()).put("viewedAt", java.time.Instant.now().toString()).put("currentPage", normalizedPage))
             viewModelScope.launch {

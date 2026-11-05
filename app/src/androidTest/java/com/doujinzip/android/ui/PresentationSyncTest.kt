@@ -14,11 +14,11 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PresentationSyncTest {
-    @Test fun lostAcknowledgementRetriesTheSameMutationBeforePullingItsOwnChange() = verifyRecovery(
+    @Test fun lostAcknowledgementIsRecoveredWithoutUploadingLegacyEdits() = verifyRecovery(
         GalleryPresentation("hitomi:42", "Phone edit", LibraryMetadata(hitomiId = "42")))
-    @Test fun seriesOverrideUsesTheExistingAuthenticatedSyncAndAcknowledgementProtocol() = verifyRecovery(
+    @Test fun seriesOverrideIsReplacedByConfirmedPcSnapshot() = verifyRecovery(
         GalleryPresentation(seriesPresentationKey("Fixture series"), "Series edit", LibraryMetadata(tags = listOf("series tag"))))
-    @Test fun seriesCoverDocumentUsesTheSameProtocolWithoutReplacingAggregateMetadata() = verifyRecovery(
+    @Test fun seriesCoverDocumentIsPulledWithoutUploadingLegacyEdits() = verifyRecovery(
         GalleryPresentation(seriesCoverPresentationKey("Fixture series"), "Fixture series", LibraryMetadata()))
     private fun verifyRecovery(value: GalleryPresentation) = runBlocking<Unit> {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -28,7 +28,7 @@ class PresentationSyncTest {
         val edits = mutableListOf<String>()
         val remote = value.copy(version = 1, revision = 1)
         val fixture = executor.submit {
-            repeat(3) { requestIndex -> server.accept().use { socket ->
+            repeat(2) { requestIndex -> server.accept().use { socket ->
                 socket.soTimeout = 5000
                 val input = socket.getInputStream().buffered()
                 fun line(): String = buildString { while (true) { val next = input.read(); if (next < 0 || next == 10) break; if (next != 13) append(next.toChar()) } }
@@ -40,7 +40,7 @@ class PresentationSyncTest {
                 val bytes = ByteArray(length)
                 var read = 0
                 while (read < length) { val count = input.read(bytes, read, length - read); check(count > 0); read += count }
-                val data = if (requestIndex < 2) {
+                val data = if (requestIndex == 0) {
                     check(first.startsWith("POST "))
                     val body = JSONObject(String(bytes, Charsets.UTF_8))
                     check(body.getJSONObject("value").getString("key") == value.key)
@@ -63,7 +63,7 @@ class PresentationSyncTest {
                 client.savePresentation(profile, first) // Server saved; the app did not persist its acknowledgement.
                 assertTrue(store.get(value.key)!!.dirty)
                 PresentationSync(client, store, PresentationCovers(context)).sync(profile)
-                assertEquals(listOf(first.mutationId, first.mutationId), edits)
+                assertEquals(listOf(first.mutationId), edits)
                 assertFalse(store.get(value.key)!!.dirty)
                 assertNull(store.get(value.key)!!.conflict)
                 assertEquals(1L, store.cursor(profile.id))

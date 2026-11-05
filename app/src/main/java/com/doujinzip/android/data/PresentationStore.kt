@@ -77,6 +77,13 @@ class PresentationStore(private val identity: LibraryIdentityStore, private val 
         }
     }
 
+    fun replaceConfirmedSnapshot(values: List<GalleryPresentation>, cursor: Long) = transaction {
+        require(values.map { it.key }.distinct().size == values.size)
+        identity.writableDatabase.delete("gallery_presentations", selection, selectionArgs)
+        values.forEach { put(PresentationRecord(it)) }
+        profileId?.let { saveCursor(it, cursor) }
+    }
+
     fun receive(value: GalleryPresentation) = transaction {
         val previous = get(value.key)
         when {

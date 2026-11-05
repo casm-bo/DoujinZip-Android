@@ -13,7 +13,7 @@ import org.junit.Test
 
 /** Opt in with a disposable desktop server's desktopInteropPort and desktopInteropCode. */
 class DesktopPresentationInteropTest {
-    @Test fun productionDesktopAndPhoneRoundTripMetadataCoversAndConflicts() = runBlocking<Unit> {
+    @Test fun desktopConfirmsEditsBeforePhoneAppliesThem() = runBlocking<Unit> {
         val args = InstrumentationRegistry.getArguments()
         val port = args.getString("desktopInteropPort")?.toIntOrNull()
         val code = args.getString("desktopInteropCode")
@@ -43,10 +43,14 @@ class DesktopPresentationInteropTest {
                 val seriesCover = requireNotNull(store.get(coverKey)?.value?.coverHash)
                 assertTrue(covers.contains(seriesCover))
                 val phoneCover = covers.import(ReaderImageSource(file.toURI().toString()))
-                store.saveLocal(gallery.value.copy(title = "Phone gallery", coverHash = phoneCover,
-                    metadata = gallery.value.metadata.copy(artists = listOf("phone_artist"), tags = listOf("phone_tag"))))
-                store.saveLocal(requireNotNull(store.get(seriesKey)).value.copy(title = "Phone series",
-                    metadata = LibraryMetadata(tags = listOf("series_tag"))))
+                client.transferCover(profile, phoneCover, covers.bytes(phoneCover))
+                val phoneValue = gallery.value.copy(title = "Phone gallery", coverHash = phoneCover,
+                    metadata = gallery.value.metadata.copy(artists = listOf("phone_artist"), tags = listOf("phone_tag")))
+                val accepted = client.savePresentation(profile, PresentationRecord(phoneValue))
+                assertEquals("applied", accepted.status)
+                assertEquals(gallery.value, store.get(gallery.value.key)?.value)
+                val series = requireNotNull(store.get(seriesKey)).value
+                assertEquals("applied", client.savePresentation(profile, PresentationRecord(series.copy(title = "Phone series", metadata = LibraryMetadata(tags = listOf("series_tag"))))).status)
                 sync.sync(profile)
                 val finalGallery = requireNotNull(store.get("hitomi:123"))
                 assertFalse(finalGallery.dirty)
@@ -59,18 +63,12 @@ class DesktopPresentationInteropTest {
                 assertEquals(listOf("series_tag"), store.get(seriesKey)?.value?.metadata?.tags)
                 assertEquals(seriesCover, store.get(coverKey)?.value?.coverHash)
 
-                store.saveLocal(finalGallery.value.copy(title = "Pending phone edit"))
-                val remote = client.savePresentation(profile, PresentationRecord(finalGallery.value.copy(title = "Concurrent edit")))
-                assertEquals("applied", remote.status)
+                val stale = client.savePresentation(profile, PresentationRecord(gallery.value.copy(title = "Stale edit")))
+                assertEquals("conflict", stale.status)
                 sync.sync(profile)
-                val conflict = requireNotNull(store.get("hitomi:123"))
-                assertEquals("Pending phone edit", conflict.value.title)
-                assertEquals("Concurrent edit", conflict.conflict?.title)
-                store.saveLocal(conflict.value, resolveConflict = true)
-                sync.sync(profile)
-                assertEquals("Pending phone edit", store.get("hitomi:123")?.value?.title)
                 assertFalse(requireNotNull(store.get("hitomi:123")).dirty)
                 assertNull(store.get("hitomi:123")?.conflict)
+
             }
         } finally { file.delete(); context.deleteDatabase(databaseName) }
     }
