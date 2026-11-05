@@ -46,10 +46,11 @@ class ServerDiscovery(context: Context, private val client: CompanionClient) {
                         val array = JSONArray(resolved.attributes["addresses"]?.toString(Charsets.UTF_8) ?: "[]")
                         (0 until array.length()).map { array.getString(it) }.filter(::discoveryIpv4).take(8)
                     }.getOrDefault(emptyList())
-                    val hosts = if (advertised.isNotEmpty()) advertised else {
+                    val resolvedHosts = {
                         if (Build.VERSION.SDK_INT >= 34) resolved.hostAddresses.mapNotNull { it.hostAddress }.filter(::discoveryIpv4)
                         else listOfNotNull(resolved.host?.hostAddress).filter(::discoveryIpv4)
                     }
+                    val hosts = advertised + resolvedHosts()
                     for (host in hosts.distinct()) {
                         val url = "http://$host:${resolved.port}"
                         val status = runCatching { client.getStatus(url, 800) }.getOrNull() ?: continue
