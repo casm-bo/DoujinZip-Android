@@ -93,7 +93,23 @@ internal class SearchQueryInput(context: Context) : AppCompatEditText(context) {
 
     override fun performClick(): Boolean = super.performClick()
 
-    override fun performLongClick(): Boolean = super.performLongClick() || showContextMenu()
+    override fun performLongClick(): Boolean {
+        val platformHandled = super.performLongClick()
+        if (selectionStart >= 0 && selectionEnd > selectionStart) return platformHandled
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val popup = android.widget.PopupMenu(context, this)
+        val selected = selectionStart >= 0 && selectionEnd > selectionStart
+        if (selected) {
+            popup.menu.add(0, android.R.id.copy, 0, android.R.string.copy)
+            popup.menu.add(0, android.R.id.cut, 1, android.R.string.cut)
+        }
+        if (clipboard.hasPrimaryClip()) popup.menu.add(0, android.R.id.paste, 2, android.R.string.paste)
+        if (!text.isNullOrEmpty()) popup.menu.add(0, android.R.id.selectAll, 3, android.R.string.selectAll)
+        popup.setOnMenuItemClickListener { onTextContextMenuItem(it.itemId) }
+        if (!popup.menu.hasVisibleItems()) return platformHandled
+        popup.show()
+        return true
+    }
 
     private val cursorBlink = object : Runnable {
         override fun run() {

@@ -2,6 +2,7 @@ package com.doujinzip.android.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -58,7 +59,7 @@ internal fun DetailHeader(title: String, metadata: LibraryMetadata, coverModel: 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         if (coverModel != null) DetailImage(coverModel, title, Modifier.fillMaxWidth().height(390.dp))
         Row(verticalAlignment = Alignment.Top) {
-            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            SelectionContainer(Modifier.weight(1f)) { Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
             options?.invoke()
         }
         FacetSection(strings[R.string.ui_artist], metadata.artists, "artist", onSearchFacet)

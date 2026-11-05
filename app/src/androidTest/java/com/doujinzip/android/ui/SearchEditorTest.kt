@@ -65,6 +65,27 @@ class SearchEditorTest {
         event.source = InputDevice.SOURCE_TOUCHSCREEN
         try { assertTrue(instrumentation.uiAutomation.injectInputEvent(event, true)) } finally { event.recycle() }
     }
+    @Test fun emptySearchOffersPasteOnLongPress() {
+        var query by mutableStateOf("")
+        compose.setContent { AppTheme { UnifiedSearchField(query, { query = it }, "Paste query", {}, {}) } }
+        compose.onNodeWithContentDescription("Paste query").performClick()
+        waitForInput()
+        field { view ->
+            val clipboard = view.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Synthetic search", "tag:sample"))
+            assertTrue(view.performLongClick())
+        }
+        val paste = instrumentation.targetContext.getString(android.R.string.paste)
+        instrumentation.waitForIdleSync()
+        instrumentation.runOnMainSync {
+            val action = views().filterIsInstance<android.widget.TextView>().first { it.text.toString() == paste }
+            var target: View = action
+            while (!target.isClickable && target.parent is View) target = target.parent as View
+            assertTrue(target.performClick())
+        }
+        compose.waitUntil(5_000) { query == "tag:sample" }
+    }
+
     @Test fun longQueryOpensAtEndAndDoesNotResetManualCursorSelection() {
         val original = List(30) { "tag:sample_$it" }.joinToString(", ")
         var query by mutableStateOf(original)
