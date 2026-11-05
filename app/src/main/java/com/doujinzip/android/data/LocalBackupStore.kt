@@ -88,9 +88,14 @@ internal class LocalBackupStore(private val context: Context) {
         val notices = JSONObject()
         SubscriptionStore(context).use { store ->
             rows(store.readableDatabase, "subscriptions").objects().forEach { row ->
-                require(row.isNull("conflict")) { "Resolve subscription conflicts before backup" }
+                val subscription = SearchSubscription.fromJson(JSONObject(row.getString("payload")))
+                if (!row.isNull("conflict")) {
+                    val remote = SearchSubscription.fromJson(JSONObject(row.getString("conflict")))
+                    require(subscription.matchesDeletedSubscription(remote)) { "Resolve subscription conflicts before backup" }
+                    return@forEach
+                }
                 if (profileId == null || row.getString("scope") != profileId || !row.isNull("mutation")) {
-                    subscriptions.put(SearchSubscription.fromJson(JSONObject(row.getString("payload"))).copy(version = 0).json())
+                    subscriptions.put(subscription.copy(version = 0).json())
                 }
             }
             // Notification matches/read receipts are local UI data, not a server subscription definition.
@@ -280,6 +285,9 @@ internal class LocalBackupStore(private val context: Context) {
         }
     }
 }
+
+internal fun SearchSubscription.matchesDeletedSubscription(other: SearchSubscription?): Boolean =
+    deleted && other?.deleted == true && id == other.id && conditionKey == other.conditionKey
 
 internal fun JSONArray.objects(): List<JSONObject> = (0 until length()).map(::getJSONObject)
 private fun com.doujinzip.android.model.BrowserWorkspace.invalidateBackupSessions(): com.doujinzip.android.model.BrowserWorkspace {

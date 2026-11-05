@@ -121,6 +121,30 @@ class LocalBackupTest {
         } }
     }
 
+    @Test fun backupSkipsOnlyMatchingDeletedSubscriptionConflicts() {
+        val base = InstrumentationRegistry.getInstrumentation().targetContext
+        IsolatedContext(base).use { context ->
+            val scope = "inactive-fixture"
+            val phone = SearchSubscription(id = "fixture", name = "Fixture", query = "artist:fixture", deleted = true)
+            SubscriptionStore(context).use { store ->
+                store.save(scope, phone)
+                store.conflict(scope, phone.id, phone.copy(version = 2))
+                val backup = LocalBackupStore(context)
+                val archive = backup.capture(emptySet(), "active-fixture", "ko")
+                assertEquals(0, archive.data.getJSONArray("subscriptions").length())
+                assertNotNull(store.records(scope).single().conflict)
+
+                for (remote in listOf(phone.copy(deleted = false), phone.copy(id = "another"), phone.copy(query = "artist:another"))) {
+                    store.conflict(scope, phone.id, remote.copy(version = 2))
+                    val failure = assertThrows(IllegalArgumentException::class.java) {
+                        backup.capture(emptySet(), "active-fixture", "ko")
+                    }
+                    assertEquals("Resolve subscription conflicts before backup", failure.message)
+                }
+            }
+        }
+    }
+
     @Test fun failedPreferenceCommitRollsBackEarlierDatabaseAndSettingChanges() {
         val base = InstrumentationRegistry.getInstrumentation().targetContext
         IsolatedContext(base).use { source -> IsolatedContext(base).use { target ->

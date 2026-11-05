@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.doujinzip.android.BuildConfig
+import com.doujinzip.android.data.matchesDeletedSubscription
 import com.doujinzip.android.data.DownloadRequest
 import com.doujinzip.android.data.SearchResultCache
 import com.doujinzip.android.data.SearchResultIndex
@@ -3872,7 +3873,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             check(uiState.librarySyncError == null && uiState.presentationSyncError == null && pendingLibrarySyncCount() == 0) {
                 uiState.librarySyncError ?: uiState.presentationSyncError ?: strings[R.string.backup_pending]
             }
-            check(withContext(Dispatchers.IO) { subscriptionStore.records(profile.id).none { it.mutationId != null || it.conflict != null } }) { strings[R.string.backup_pending] }
+            check(withContext(Dispatchers.IO) {
+                subscriptionStore.records(profile.id).none {
+                    (it.mutationId != null || it.conflict != null) && !it.value.matchesDeletedSubscription(it.conflict)
+                }
+            }) { strings[R.string.backup_pending] }
             syncedIds = withContext(Dispatchers.IO) { client.getLibraryBooks(profile).filter { it.syncStateVersion > 0 && it.hasSyncedSeriesState }.mapTo(mutableSetOf()) { it.id } }
             val now = System.currentTimeMillis()
             browserPreferenceStore.saveLastDesktopSync(now)
