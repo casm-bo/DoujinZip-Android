@@ -13,6 +13,7 @@ import org.json.JSONObject
 data class AvailableLanguage(val code: String, val label: String)
 
 internal fun parseAvailableLanguages(script: String): List<AvailableLanguage> {
+    val priority = listOf("korean", "japanese", "english", "chinese")
     fun objectValue(name: String): JSONObject {
         val value = Regex("""\b$name\s*=\s*(\{[^}]*\})""").find(script)?.groupValues?.get(1)
             ?: error("언어 목록 응답 형식이 올바르지 않습니다.")
@@ -26,7 +27,9 @@ internal fun parseAvailableLanguages(script: String): List<AvailableLanguage> {
         AvailableLanguage(code, labels.optString(raw).ifBlank {
             code.replace('_', ' ').replaceFirstChar { it.uppercase() }
         })
-    }.distinctBy { it.code }.sortedBy { it.label.lowercase(Locale.ROOT) }.toList()
+    }.distinctBy { it.code }.sortedWith(compareBy<AvailableLanguage> {
+        priority.indexOf(it.code).takeIf { index -> index >= 0 } ?: priority.size
+    }.thenBy { it.label.lowercase(Locale.ROOT) }).toList()
         .also { require(it.isNotEmpty()) { "서버 언어 목록이 비어 있습니다." } }
 }
 

@@ -4,6 +4,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class AvailableLanguagesTest {
+    @Test fun `preferred languages precede the remaining alphabetical catalog`() {
+        val codes = listOf("french", "chinese", "german", "japanese", "english", "korean")
+        val entries = codes.mapIndexed { index, code -> "\"$index\":\"$code\"" }.joinToString()
+        val languages = parseAvailableLanguages("bitnumber_language={$entries};language_localname={};")
+        assertEquals(listOf("korean", "japanese", "english", "chinese", "french", "german"), languages.map { it.code })
+        assertEquals(listOf("english", "french"), parseAvailableLanguages("bitnumber_language={\"0\":\"french\",\"1\":\"english\"};language_localname={};").map { it.code })
+    }
+
     @Test fun `all advertised languages use native labels and missing labels fall back`() {
         val languages = parseAvailableLanguages("""
             'use strict';
