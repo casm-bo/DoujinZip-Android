@@ -48,3 +48,10 @@ Before using Superpowers, ask for my permission.
 Only suggest Superpowers when you genuinely believe the task would significantly benefit from it (for example: large architecture changes, major refactoring, or complex multi-step implementations).
 
 Wait for my approval before invoking any Superpowers workflow.
+
+## Changelog and Release Notes
+
+- Group new entries into only `기능`, `버그 수정`, and `UI 개선`; omit empty categories.
+- Put layout, scaling, language-list presentation, controls, and visual contrast under `UI 개선`, rather than separate screen or language categories.
+- Keep entries concise and user-facing. Use the same approved wording in the app changelog and release notes; Android also updates `CHANGELOG.md`.
+- Show the proposed changelog to the user and obtain approval before version commits, tags, or release publication. Approval of the wording authorizes the requested release to proceed.
