@@ -641,4 +641,5 @@
     <string name="feed_error">購読フィードを読み込めませんでした。</string>
     <string name="feed_filter">購読フィルター</string>
     <string name="feed_new_items">新しい作品があります</string>
+    <string name="ui_group_series">シリーズをまとめる</string>
 </resources>

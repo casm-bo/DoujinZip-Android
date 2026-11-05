@@ -641,4 +641,5 @@
     <string name="feed_error">Could not load the subscription feed.</string>
     <string name="feed_filter">Subscriptions</string>
     <string name="feed_new_items">New items available</string>
+    <string name="ui_group_series">Group series</string>
 </resources>

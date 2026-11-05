@@ -641,4 +641,5 @@
     <string name="feed_error">无法加载订阅动态。</string>
     <string name="feed_filter">订阅筛选</string>
     <string name="feed_new_items">有新作品</string>
+    <string name="ui_group_series">按系列分组</string>
 </resources>

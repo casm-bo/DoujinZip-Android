@@ -160,8 +160,9 @@ internal sealed interface LibraryMainEntry {
 }
 
 internal fun libraryMainEntries(
-    books: List<LibraryBook>, assignments: Map<String, CustomSeriesAssignment>, sort: LibrarySort,
+    books: List<LibraryBook>, assignments: Map<String, CustomSeriesAssignment>, sort: LibrarySort, groupSeries: Boolean = true,
 ): List<LibraryMainEntry> {
+    if (!groupSeries) return sortLibraryMainEntries(books.map { LibraryMainEntry.Book(it) }, sort)
     val grouped = books.filter { it.id in assignments }.groupBy { assignments.getValue(it.id).name }
     val entries = books.filter { it.id !in assignments }.map { LibraryMainEntry.Book(it) } +
         grouped.map { (name, members) -> LibraryMainEntry.Series(name, members.sortedWith(
@@ -294,6 +295,7 @@ fun LibraryScreen(
     var gridColumns by rememberSaveable {
         mutableIntStateOf(libraryPreferences.loadLibraryGridColumns())
     }
+    var groupSeries by rememberSaveable { mutableStateOf(libraryPreferences.loadGroupSeries()) }
     val seriesMode = state.librarySeriesMode
     val selectedSeries = seriesPage?.name
     var selectedIds by rememberSaveable { mutableStateOf(emptySet<String>()) }
@@ -337,8 +339,8 @@ fun LibraryScreen(
     val shownBooks = remember(books, visibilityBooks, selectedSeries, state.customSeriesByBookId) {
         (if (selectedSeries == null) books else visibilityBooks).filterBySeries(selectedSeries, state.customSeriesByBookId)
     }
-    val mainEntries = remember(books, state.customSeriesByBookId, state.librarySort) {
-        libraryMainEntries(books, state.customSeriesByBookId, state.librarySort)
+    val mainEntries = remember(books, state.customSeriesByBookId, state.librarySort, groupSeries) {
+        libraryMainEntries(books, state.customSeriesByBookId, state.librarySort, groupSeries)
     }
     val shownEntries = remember(shownBooks) { shownBooks.map { LibraryMainEntry.Book(it) } }
     val pullToRefreshState = rememberPullToRefreshState()
@@ -519,6 +521,9 @@ fun LibraryScreen(
                         if (options != strings[R.string.ui_gallery_options]) DropdownMenuItem(text = { Text(options.orEmpty()) }, leadingIcon = { ActionIcon(ActionSymbol.BACK) }, onClick = { options = strings[R.string.ui_gallery_options] })
                         when (options) {
                             strings[R.string.ui_view_58d697] -> {
+                                DropdownMenuItem(text = { Text(strings[R.string.ui_group_series]) }, leadingIcon = { Checkbox(checked = groupSeries, onCheckedChange = null) }, onClick = {
+                                    groupSeries = !groupSeries; libraryPreferences.saveGroupSeries(groupSeries); options = null
+                                })
                                 WorkViewOptions(viewMode == LibraryViewMode.GRID, gridColumns,
                                     onMode = { grid -> viewModeName = if (grid) "GRID" else "LIST"; libraryPreferences.saveLibraryViewMode(viewModeName); options = null },
                                     onSize = { gridColumns = it; libraryPreferences.saveLibraryGridColumns(it) })

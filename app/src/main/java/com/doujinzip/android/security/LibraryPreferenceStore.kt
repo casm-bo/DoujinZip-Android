@@ -239,6 +239,9 @@ class LibraryPreferenceStore(context: Context, fileName: String = FILE_NAME) {
     private inline fun <reified T : Enum<T>> enumPreference(key: String, fallback: T): T =
         runCatching { enumValueOf<T>(preferences.getString(key, null).orEmpty()) }.getOrDefault(fallback)
 
+    fun loadGroupSeries(): Boolean = preferences.getBoolean("library_group_series", true)
+    fun saveGroupSeries(value: Boolean) = preferences.edit().putBoolean("library_group_series", value).apply()
+
     fun loadLibraryViewMode(): String = preferences.getString(KEY_LIBRARY_VIEW_MODE, "GRID") ?: "GRID"
 
     fun saveLibraryViewMode(value: String) =

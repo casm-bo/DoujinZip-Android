@@ -641,4 +641,5 @@
     <string name="feed_error">구독피드를 불러오지 못했습니다.</string>
     <string name="feed_filter">구독 필터</string>
     <string name="feed_new_items">새 항목 있음</string>
+    <string name="ui_group_series">시리즈 묶어보기</string>
 </resources>
