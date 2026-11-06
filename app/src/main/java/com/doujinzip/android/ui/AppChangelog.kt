@@ -7,6 +7,13 @@ internal data class AppChangelog(
 
 internal val appChangelog = listOf(
     AppChangelog(
+        version = "1.5.1",
+        changes = listOf(
+            "[🐞 버그 수정] 시리즈 계속읽기와 갤러리 삭제·편집 후 갱신 오류 수정",
+            "[🐞 버그 수정] 다운로드 상태 표시와 중복 다운로드 수정",
+        ),
+    ),
+    AppChangelog(
         version = "1.5.0",
         changes = listOf(
             "[✨ 기능] PC 서버 검색·페어링과 표지 초기화를 추가하고, 공유 정보는 PC 저장 확인 후 반영합니다.",
