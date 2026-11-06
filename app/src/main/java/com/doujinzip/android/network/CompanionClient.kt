@@ -171,8 +171,8 @@ class CompanionClient {
             )
         }
 
-    suspend fun getLibraryId(profile: DesktopProfile): String? = withContext(Dispatchers.IO) {
-        request("${profile.baseUrl}/v1/connection", token = profile.token)
+    suspend fun getLibraryId(profile: DesktopProfile, clientId: String? = null): String? = withContext(Dispatchers.IO) {
+        request("${profile.baseUrl}/v1/connection", token = profile.token, clientId = clientId)
             .requireSuccess().nullableString("libraryId")
     }
 
@@ -601,6 +601,7 @@ class CompanionClient {
         body: JSONObject? = null,
         readTimeoutMs: Int = READ_TIMEOUT_MS,
         connectTimeoutMs: Int = CONNECT_TIMEOUT_MS,
+        clientId: String? = null,
     ): JSONObject {
         val connection = URL(url).openConnection() as HttpURLConnection
         return try {
@@ -609,6 +610,7 @@ class CompanionClient {
             connection.connectTimeout = connectTimeoutMs
             connection.readTimeout = readTimeoutMs
             connection.setRequestProperty("Accept", "application/json")
+            if (clientId != null) connection.setRequestProperty("X-DoujinZip-Client-Id", clientId)
             if (token != null) {
                 connection.setRequestProperty("Authorization", "Bearer $token")
             }

@@ -883,7 +883,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val status = client.getStatus(server.baseUrl)
                 require(status.serverId == saved.serverId)
                 val updated = saved.copy(baseUrl = server.baseUrl)
-                client.getLibraryId(updated)
+                client.getLibraryId(updated, com.doujinzip.android.security.pairingIdentity(getApplication()))
                 profileStore.save(listOf(updated))
                 uiState = uiState.copy(profiles = listOf(updated), desktopLibraryReady = false)
                 reloadProfileLibrary()
@@ -1367,7 +1367,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val status = runCatching { client.getStatus(profile.baseUrl) }.getOrNull()
                 val connected = status != null
                 if (connected) {
-                    val libraryId = runCatching { client.getLibraryId(profile) }.getOrNull()
+                    val libraryId = runCatching { client.getLibraryId(profile,
+                        com.doujinzip.android.security.pairingIdentity(getApplication())) }.getOrNull()
                     if (selectedProfile() != profile) continue
                     if (libraryId != null && (libraryId != profile.libraryId || (profile.serverId == null && status?.serverId != null))) {
                         val fallback = if (profile.libraryId == null) profile.id else libraryId
