@@ -229,6 +229,13 @@ fun BrowserWorkspace.closeTab(
     }
 
     val remaining = tabs.filterNot { it.id == tabId }
+    if (activeTabId == tabId && tabs[closingIndex].groupId == null) {
+        val standalone = overviewItems.filterIsInstance<BrowserOverviewItem.Tab>().map { it.tab }
+        val index = standalone.indexOfFirst { it.id == tabId }
+        val neighbor = standalone.getOrNull(index - 1) ?: standalone.getOrNull(index + 1)
+        val next = neighbor ?: BrowserTab(history = listOf(fallback))
+        return copy(tabs = if (neighbor == null) remaining + next else remaining, activeTabId = next.id).normalizeGroups()
+    }
     val sameGroupNeighbor = remaining.firstOrNull { it.groupId == tabs[closingIndex].groupId }
     val next = sameGroupNeighbor ?: remaining[closingIndex.coerceAtMost(remaining.lastIndex)]
     return copy(tabs = remaining, activeTabId = if (activeTabId == tabId) next.id else activeTabId)

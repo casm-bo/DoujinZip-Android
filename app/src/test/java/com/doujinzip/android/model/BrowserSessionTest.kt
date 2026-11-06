@@ -2,10 +2,27 @@ package com.doujinzip.android.model
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BrowserSessionTest {
+    @Test fun closingStandaloneTabUsesPreviousDisplayedTabAndSkipsGroups() {
+        val tabs = (1..5).map { BrowserTab(id = "tab$it") }
+        val grouped = BrowserWorkspace(tabs, "tab5").createGroup(setOf("tab3", "tab4"), "Fixture")
+        assertEquals("tab2", grouped.closeTab("tab5").activeTabId)
+        assertEquals("tab2", grouped.selectTab("tab1").closeTab("tab1").activeTabId)
+        assertEquals("tab5", grouped.closeTab("tab2").activeTabId)
+        val reordered = grouped.copy(overviewOrder = listOf("tab:tab2", "tab:tab1", "tab:tab5"))
+        assertEquals("tab1", reordered.closeTab("tab5").activeTabId)
+        assertEquals("tab3", grouped.selectTab("tab4").closeTab("tab4").activeTabId)
+        val onlyGroups = grouped.copy(tabs = grouped.tabs.filter { it.id !in setOf("tab1", "tab2") })
+            .closeTab("tab5", BrowserPage.LibraryHome())
+        assertNull(onlyGroups.activeTab.groupId)
+        assertTrue(onlyGroups.activeTab.currentPage is BrowserPage.LibraryHome)
+        assertEquals(2, onlyGroups.tabs.count { it.groupId != null })
+    }
+
     @Test fun departingPageLookupIgnoresForwardHistoryAndOtherTabs() {
         val first = BrowserPage.LibraryHome(scrollIndex = 20, scrollOffset = 17)
         val second = BrowserPage.LibraryHome(query = "second", scrollIndex = 4)
