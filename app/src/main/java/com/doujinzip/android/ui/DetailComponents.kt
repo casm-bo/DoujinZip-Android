@@ -99,8 +99,8 @@ internal fun PresentationActions(value: GalleryPresentation, record: Presentatio
             if (editable) {
             DropdownMenuItem(text = { Text(strings[R.string.ui_edit_metadata]) }, leadingIcon = { ActionIcon(ActionSymbol.EDIT) }, onClick = { menu = false; editor = true })
             DropdownMenuItem(text = { Text(coverLabel) }, leadingIcon = { ActionIcon(ActionSymbol.PAGE) }, enabled = sources.isNotEmpty(), onClick = { menu = false; coverPicker = true })
-            if (onResetCover != null) DropdownMenuItem(text = { Text(strings[R.string.ui_reset_cover]) }, leadingIcon = { ActionIcon(ActionSymbol.REFRESH) }, onClick = { menu = false; onResetCover() })
             DropdownMenuItem(text = { Text(strings[R.string.ui_cover_from_image]) }, leadingIcon = { ActionIcon(ActionSymbol.FOLDER) }, onClick = { menu = false; external.launch(arrayOf("image/*")) })
+            if (onResetCover != null) DropdownMenuItem(text = { Text(strings[R.string.ui_reset_cover]) }, leadingIcon = { ActionIcon(ActionSymbol.REFRESH) }, onClick = { menu = false; onResetCover() })
             if (actions.isNotEmpty()) HorizontalDivider()
             }
             actions.forEach { action -> DropdownMenuItem(text = { Text(action.label) }, leadingIcon = { ActionIcon(action.symbol) }, onClick = { menu = false; action.onClick() }) }
