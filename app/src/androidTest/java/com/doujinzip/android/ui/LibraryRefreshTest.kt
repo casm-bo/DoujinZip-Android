@@ -17,7 +17,10 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LibraryRefreshTest {
-    @Test fun reconnectSharesSuccessfulInFlightScanButManualRefreshStillRuns() {
+    @Test fun reconnectSharesSuccessfulInFlightScanButManualRefreshStillRuns() = verifyRefresh(changeGeneration = true)
+    @Test fun mutationDuringScanQueuesFreshSnapshot() = verifyRefresh(changeGeneration = false)
+
+    private fun verifyRefresh(changeGeneration: Boolean) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
         check(context.packageName.endsWith(".uitest"))
@@ -82,8 +85,13 @@ class LibraryRefreshTest {
             waitFor { bookCalls.get() == 2 && !model.uiState.isLibraryScanning }
             instrumentation.runOnMainSync { model.refreshLibrary() }
             assertTrue(thirdRequested.await(10, TimeUnit.SECONDS))
-            serverGeneration.set(2)
-            assertTrue(changedStatus.await(10, TimeUnit.SECONDS))
+            if (changeGeneration) {
+                serverGeneration.set(2)
+                assertTrue(changedStatus.await(10, TimeUnit.SECONDS))
+            } else instrumentation.runOnMainSync {
+                MainViewModel::class.java.getDeclaredMethod("removeDeletedLibraryState", Set::class.java).apply { isAccessible = true }
+                    .invoke(model, setOf("deleted-fixture"))
+            }
             // Allow the localhost status response to reach the main-thread monitor before stopping it.
             Thread.sleep(300)
             instrumentation.waitForIdleSync()

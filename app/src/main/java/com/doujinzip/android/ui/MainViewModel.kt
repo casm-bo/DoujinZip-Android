@@ -81,6 +81,7 @@ import com.doujinzip.android.model.continueLibraryReader
 import com.doujinzip.android.model.openLibraryReader
 import com.doujinzip.android.model.updateLibrarySeries
 import com.doujinzip.android.model.renameSeriesPages
+import com.doujinzip.android.model.reconcileSeriesPages
 import com.doujinzip.android.model.selectSearchTab
 import com.doujinzip.android.model.selectTab
 import com.doujinzip.android.model.searchResultSessionIds
@@ -304,6 +305,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val presentationCovers = PresentationCovers(application)
     private val presentationSyncMutex = Mutex()
     private var presentationReloadRevision = 0L
+    private var libraryMutationRevision = 0L
     private fun presentationStore(profileId: String? = uiState.selectedProfileId) = PresentationStore(libraryIdentityStore, profileId)
     private val libraryScanner = LibraryScanner(application, libraryIdentityStore)
     private val libraryArchiveExtractor = LibraryArchiveExtractor(application)
@@ -605,7 +607,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun requireDesktopEdit(): DesktopProfile? {
         val profile = selectedProfile()
-        if (profile == null || uiState.desktopConnectionState != DesktopConnectionState.CONNECTED || !uiState.desktopLibraryReady || uiState.presentationSyncError != null || uiState.isLibraryScanning) {
+        if (profile == null || uiState.desktopConnectionState != DesktopConnectionState.CONNECTED || !uiState.desktopLibraryReady || uiState.presentationSyncError != null) {
             uiState = uiState.copy(message = strings[R.string.ui_connect_refresh_before_edit], isError = true)
             return null
         }
@@ -629,7 +631,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 uiState = uiState.copy(desktopLibraryReady = false, librarySyncError = error.message)
                 throw error
             }
-            refreshLibrarySilently()
+            requestImportantLibraryRefresh()
         } }
     }
     private suspend fun replayServerEdits(profile: DesktopProfile) = serverEditMutex.withLock {
@@ -637,6 +639,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val response = client.submitServerEdit(profile, request.getString("kind"), request.getJSONObject("body"))
             val results = response.optJSONArray("results")
             val statuses = com.doujinzip.android.data.validateServerEditResponse(request.getString("kind"), request.getJSONObject("body"), response)
+            if (profile.id == uiState.selectedProfileId) {
+                libraryMutationRevision++
+                if (results != null && request.getString("kind") == "series") applyConfirmedSeriesResults(results)
+            }
             if (results != null && request.getString("kind") == "state") {
                 val states = (0 until results.length()).mapNotNull { results.getJSONObject(it).optJSONObject("state")?.toSyncedBookState() }
                 if (profile.id == uiState.selectedProfileId) applySyncedBookStates(states, uiState.libraryBooks)
@@ -646,6 +652,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             withContext(Dispatchers.IO) { serverEdits.remove(id, request) }
             if (statuses.any { it == "conflict" || it == "not_found" }) uiState = uiState.copy(message = strings[R.string.ui_pc_edit_conflict], isError = true)
         }
+    }
+
+    private fun applyConfirmedSeriesResults(results: org.json.JSONArray) {
+        val previous = uiState.customSeriesByBookId
+        val assignments = previous.toMutableMap()
+        val removals = libraryPreferenceStore.loadSeriesRemovalTimes().toMutableMap()
+        val bySyncId = (0 until results.length()).map { results.getJSONObject(it) }.associateBy { it.getString("bookSyncId").lowercase() }
+        fun updated(book: LibraryBook): LibraryBook {
+            val result = book.syncId?.lowercase()?.let(bySyncId::get) ?: return book
+            if (result.getString("status") == "not_found") return book
+            val version = result.getLong("version")
+            if (version < book.syncStateVersion) return book
+            val modifiedAt = result.getLong("modifiedAt")
+            val assignment = if (result.isNull("name")) null else CustomSeriesAssignment(result.getString("name"), result.getInt("order"), modifiedAt)
+            if (assignment == null) { assignments.remove(book.id); removals[book.id] = modifiedAt }
+            else { assignments[book.id] = assignment; removals.remove(book.id) }
+            return book.copy(syncStateVersion = version, syncedSeries = assignment, syncedSeriesModifiedAt = modifiedAt, hasSyncedSeriesState = true)
+        }
+        val books = uiState.libraryBooks.map(::updated)
+        libraryPreferenceStore.saveCustomSeries(assignments)
+        libraryPreferenceStore.saveSeriesRemovalTimes(removals)
+        uiState = uiState.copy(libraryBooks = books, customSeriesByBookId = assignments,
+            activeLibraryBook = uiState.activeLibraryBook?.let { active -> books.firstOrNull { it.id == active.id } ?: active })
+        reconcileLibrarySeriesPages(previous)
+    }
+
+    private fun reconcileLibrarySeriesPages(previous: Map<String, CustomSeriesAssignment>) {
+        val workspace = uiState.galleryWorkspace.reconcileSeriesPages(previous, uiState.customSeriesByBookId)
+        if (workspace == uiState.galleryWorkspace) return
+        val page = workspace.tabs.asSequence().flatMap { it.history.asSequence() }.firstOrNull { it.key == navigationPage.key }
+        val changedNavigation = page != null && page != navigationPage
+        if (changedNavigation) navigationPage = page
+        uiState = uiState.copy(galleryWorkspace = workspace,
+            browserNavigationRevision = uiState.browserNavigationRevision + if (changedNavigation) 1 else 0)
+        browserPreferenceStore.saveGalleryWorkspace(workspace)
     }
     fun saveGalleryPresentation(value: GalleryPresentation, resolveConflict: Boolean = false) {
         if (requireDesktopEdit() == null) return
@@ -1763,6 +1804,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val scannedLocations = uiState.libraryLocations
         val profile = selectedProfile()
         val generation = libraryProfileGeneration
+        val mutationRevision = libraryMutationRevision
         fun current() = generation == libraryProfileGeneration && profile?.id == uiState.selectedProfileId
         libraryRefreshJob = viewModelScope.launch {
             uiState = uiState.copy(
@@ -1810,6 +1852,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         librarySnapshotComplete, presentations, previousBooks.associateBy(LibraryBook::id))
                 }
                 if (!current()) return@launch
+                if (mutationRevision != libraryMutationRevision) return@launch
                 // A user edit during preparation must win over this older scan snapshot.
                 if (libraryPreferenceStore.matchesSnapshot(preferences) && presentations === uiState.presentations) break
             }
@@ -1867,6 +1910,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val readerReadyBooks = refreshedActiveBook?.let { active ->
                 allBooks.map { if (it.id == active.id) active else it }
             } ?: allBooks
+            val previousSeries = uiState.customSeriesByBookId
             uiState = uiState.copy(
                 libraryBooks = readerReadyBooks,
                 libraryHiddenIds = hiddenIds,
@@ -1901,6 +1945,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     System.currentTimeMillis()
                 } else uiState.libraryLastSyncedAt,
             )
+            if (librarySnapshotComplete) reconcileLibrarySeriesPages(previousSeries)
             refreshedActiveBook
                 ?.takeUnless(LibraryBook::hasResolvedReaderPages)
                 ?.let(::prepareActiveLibraryBook)
@@ -1944,6 +1989,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (current()) uiState = uiState.copy(libraryScanError = error.message, isLibraryScanning = false, isLibraryPullRefreshing = false)
             } finally {
                 if (current()) uiState = uiState.copy(isLibraryScanning = false, isLibraryPullRefreshing = false)
+                if (current() && mutationRevision != libraryMutationRevision) requestImportantLibraryRefresh()
             }
         }
     }
@@ -2136,14 +2182,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun commitLibrarySeriesEdit(name: String, baseline: Map<String, CustomSeriesAssignment>, orderedIds: List<String>): Boolean {
         if (requireDesktopEdit() == null) return false
-        if (uiState.isLibraryScanning || orderedIds.distinct().size != orderedIds.size || orderedIds.any { id -> uiState.libraryBooks.none { it.id == id } }) return false
+        if (orderedIds.distinct().size != orderedIds.size || orderedIds.any { id -> uiState.libraryBooks.none { it.id == id } }) return false
         val current = uiState.customSeriesByBookId
         fun membership(values: Map<String, CustomSeriesAssignment>) = values.filterValues { it.name == name }.mapValues { it.value.order }
         if (membership(current) != membership(baseline)) return false
         if (orderedIds.any { id -> current[id]?.let { it.name to it.order } != baseline[id]?.let { it.name to it.order } }) return false
         val assignments = com.doujinzip.android.model.replaceSeriesMembers(current, name, orderedIds, System.currentTimeMillis())
-        persistCustomSeries(assignments)
-        return true
+        return persistCustomSeries(assignments)
     }
 
     fun openLibraryBook(bookId: String) {
@@ -2452,6 +2497,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun removeDeletedLibraryState(bookIds: Set<String>) {
+        libraryMutationRevision++
+        val previousSeries = uiState.customSeriesByBookId
         if (uiState.activeLibraryBook?.id in bookIds) {
             libraryPreferenceStore.saveActiveBookId(null)
             activeBookPreparationJob?.cancel()
@@ -2486,6 +2533,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             customSeriesByBookId = series,
             activeLibraryBook = uiState.activeLibraryBook?.takeUnless { it.id in bookIds },
         )
+        reconcileLibrarySeriesPages(previousSeries)
     }
 
     fun renameLibraryBook(bookId: String, title: String) {
@@ -3438,19 +3486,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return cache
     }
 
-    private fun persistCustomSeries(assignments: Map<String, CustomSeriesAssignment>) {
-        if (requireDesktopEdit() == null) return
-        val changed = (uiState.customSeriesByBookId.keys + assignments.keys).filter { uiState.customSeriesByBookId[it] != assignments[it] }
+    private fun persistCustomSeries(assignments: Map<String, CustomSeriesAssignment>): Boolean {
+        if (requireDesktopEdit() == null) return false
+        val changed = (uiState.customSeriesByBookId.keys + assignments.keys).filter { !uiState.customSeriesByBookId[it].sameSeriesStateAs(assignments[it]) }
         val patches = org.json.JSONArray()
         for (id in changed) {
             val book = uiState.libraryBooks.firstOrNull { it.id == id } ?: continue
-            if (book.syncId == null) { uiState = uiState.copy(message = strings[R.string.ui_connect_refresh_before_edit], isError = true); return }
+            if (book.syncId == null) { uiState = uiState.copy(message = strings[R.string.ui_connect_refresh_before_edit], isError = true); return false }
             val assignment = assignments[id]
             patches.put(org.json.JSONObject().put("mutationId", java.util.UUID.randomUUID().toString()).put("bookSyncId", book.syncId)
                 .put("baseVersion", book.syncStateVersion).put("name", assignment?.name ?: org.json.JSONObject.NULL)
                 .put("order", assignment?.order ?: 0).put("modifiedAt", System.currentTimeMillis()))
         }
         if (patches.length() > 0) submitServerEdit("series", org.json.JSONObject().put("assignments", patches))
+        return true
     }
 
     private fun pendingLibrarySyncCount(): Int = (selectedProfile()?.let { serverEdits.pending(it.id).size } ?: 0) + distinctPendingSyncCount(

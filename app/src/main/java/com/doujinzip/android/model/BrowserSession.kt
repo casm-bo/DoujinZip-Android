@@ -270,6 +270,19 @@ fun BrowserWorkspace.renameSeriesPages(oldName: String, newName: String): Browse
     if (page is BrowserPage.LibrarySeries && page.name == oldName) page.copy(name = newName) else page
 }
 
+internal fun BrowserWorkspace.reconcileSeriesPages(
+    previous: Map<String, CustomSeriesAssignment>, current: Map<String, CustomSeriesAssignment>,
+): BrowserWorkspace {
+    val names = current.values.mapTo(hashSetOf()) { it.name }
+    val replacements = previous.entries.groupBy { it.value.name }.mapValues { (_, members) ->
+        members.mapNotNull { current[it.key]?.name }.distinct().singleOrNull()
+    }
+    return mapPages { page ->
+        if (page !is BrowserPage.LibrarySeries || page.name in names) page
+        else replacements[page.name]?.let { page.copy(name = it) } ?: BrowserPage.LibraryHome(key = page.key)
+    }
+}
+
 fun BrowserWorkspace.goBack(): BrowserWorkspace = updateActiveTab { tab ->
     if (tab.canGoBack) tab.copy(currentIndex = tab.currentIndex - 1) else tab
 }
