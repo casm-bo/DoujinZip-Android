@@ -37,6 +37,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -51,6 +52,10 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.doujinzip.android.model.GallerySummary
 import com.doujinzip.android.model.presentation
+import com.doujinzip.android.model.DownloadDestination
+import com.doujinzip.android.data.DownloadRequest
+import com.doujinzip.android.data.DownloadTarget
+import com.doujinzip.android.data.RequestStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,6 +74,7 @@ fun GalleryDetailScreen(
     options: (@Composable () -> Unit)? = null,
     webtoon: Boolean = false,
     tabBar: (@Composable () -> Unit)? = null,
+    onRefresh: (Long) -> Unit = {},
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     Scaffold(
@@ -95,7 +101,8 @@ fun GalleryDetailScreen(
         val previewPages = state.readerPagesByGalleryId[gallery.id].orEmpty()
 
         val gridState = previewGridState(pageKey, initialPreviewPosition, previewPages.size, onPreviewPositionChange)
-        Box(Modifier.fillMaxSize().padding(scaffoldPadding)) {
+        PullToRefreshBox(isRefreshing = gallery.id in state.refreshingGalleryIds,
+            onRefresh = { onRefresh(gallery.id) }, modifier = Modifier.fillMaxSize().padding(scaffoldPadding)) {
             LazyVerticalGrid(
                 state = gridState,
                 columns = GridCells.Fixed(3),
@@ -109,7 +116,8 @@ fun GalleryDetailScreen(
                         DetailHeader(preferredLocalizedTitle(gallery.title), gallery.presentation().metadata,
                             gallery.thumbnailUrl?.let { hitomiImageRequest(context, it, gallery.id, crossfade = false) },
                             gallery.pageCount, onSearchFacet = onSearchFacet, onSearchLanguage = onSearchLanguage, options = options, webtoon = webtoon)
-                        val pendingRequest = state.downloadRequests.any { it.galleryId == gallery.id && !it.isFinished }
+                        val pendingRequest = state.downloadRequests.any { it.galleryId == gallery.id && (!it.isFinished || it.status == RequestStatus.SENT) }
+                        val downloaded = state.hasDownloadedGallery(gallery.id)
                         val queuedDownload = state.downloadQueue.firstOrNull {
                             it.galleryId == gallery.id
                         }
@@ -119,12 +127,14 @@ fun GalleryDetailScreen(
                             }
                             OutlinedButton(
                                 onClick = { onDownload(gallery) },
-                                enabled = gallery.id !in state.downloadingGalleryIds && queuedDownload == null && !pendingRequest,
+                                enabled = gallery.id !in state.downloadingGalleryIds && queuedDownload == null && !pendingRequest &&
+                                    !state.allDownloadDestinationsOwned(gallery.id),
                                 modifier = Modifier.weight(1f),
                             ) {
                                 Text(
                                     when {
                                         gallery.id in state.downloadingGalleryIds -> strings[R.string.ui_requesting]
+                                        downloaded -> strings[R.string.ui_completed]
                                         pendingRequest -> strings[R.string.ui_already_in_downloads]
                                         queuedDownload != null -> strings[R.string.ui_already_in_download_queue]
                                         else -> strings[R.string.ui_download]
@@ -178,6 +188,19 @@ fun GalleryDetailScreen(
         }
     }
 }
+
+internal fun MainUiState.hasDownloadedGallery(galleryId: Long, destination: DownloadDestination = downloadDestination,
+    requests: List<DownloadRequest> = downloadRequests): Boolean {
+    fun matches(cloud: Boolean) = destination == DownloadDestination.ASK || cloud == (destination == DownloadDestination.DESKTOP)
+    return libraryBooks.any { it.metadata.hitomiId?.toLongOrNull() == galleryId && matches(it.isCloud) } ||
+        requests.any { it.galleryId == galleryId && it.status == RequestStatus.COMPLETED &&
+            matches(it.target == DownloadTarget.DESKTOP) && (it.target == DownloadTarget.LOCAL || it.profileId == selectedProfileId) }
+}
+
+internal fun MainUiState.allDownloadDestinationsOwned(galleryId: Long, requests: List<DownloadRequest> = downloadRequests): Boolean =
+    if (downloadDestination == DownloadDestination.ASK) hasDownloadedGallery(galleryId, DownloadDestination.DEVICE, requests) &&
+        hasDownloadedGallery(galleryId, DownloadDestination.DESKTOP, requests)
+    else hasDownloadedGallery(galleryId, downloadDestination, requests)
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable

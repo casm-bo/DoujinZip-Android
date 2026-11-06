@@ -115,8 +115,15 @@ internal fun decodeDownloadRequests(raw: String): List<DownloadRequest> {
 }
 
 internal fun addDownloadRequest(requests: List<DownloadRequest>, request: DownloadRequest): List<DownloadRequest> =
-    if (requests.any { it.galleryId == request.galleryId && !it.isFinished }) requests
+    if (requests.any { it.galleryId == request.galleryId && (!it.isFinished ||
+            (it.target == request.target && (it.target == DownloadTarget.LOCAL || it.profileId == request.profileId))) }) requests
     else listOf(request) + requests
+
+internal fun List<DownloadRequest>.withoutDeletedBooks(books: List<com.doujinzip.android.model.LibraryBook>, profileId: String?): List<DownloadRequest> =
+    filterNot { request -> request.status == RequestStatus.COMPLETED && books.any { book ->
+        book.metadata.hitomiId?.toLongOrNull() == request.galleryId && book.isCloud == (request.target == DownloadTarget.DESKTOP) &&
+            (!book.isCloud || request.profileId == profileId)
+    } }
 
 internal fun List<DownloadRequest>.confirmDesktopCompletions(profileId: String, queue: List<com.doujinzip.android.model.DownloadQueueItem>): List<DownloadRequest> = map { request ->
     val completed = queue.any { item -> item.status == com.doujinzip.android.model.DownloadStatus.COMPLETED &&

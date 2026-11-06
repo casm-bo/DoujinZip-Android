@@ -34,8 +34,8 @@ internal fun DownloadPrompts(viewModel: MainViewModel, onSettings: (String) -> U
                     Text(strings[R.string.msg_choose_a_download_folder_first])
                     Button(onClick = { folder.launch(null) }, modifier = Modifier.fillMaxWidth()) { ActionIcon(ActionSymbol.FOLDER); Text(strings[R.string.ui_choose_folder], Modifier.padding(start = 8.dp)) }
                 } else {
-                    Button(onClick = { viewModel.chooseDownloadDestination(DownloadDestination.DEVICE) }, modifier = Modifier.fillMaxWidth()) { ActionIcon(ActionSymbol.DEVICE); Text(strings[R.string.ui_device], Modifier.padding(start = 8.dp)) }
-                    OutlinedButton(onClick = { viewModel.chooseDownloadDestination(DownloadDestination.DESKTOP) }, modifier = Modifier.fillMaxWidth()) { ActionIcon(ActionSymbol.PC); Text(strings[R.string.ui_desktop], Modifier.padding(start = 8.dp)) }
+                    Button(onClick = { viewModel.chooseDownloadDestination(DownloadDestination.DEVICE) }, enabled = !state.hasDownloadedGallery(gallery.id, DownloadDestination.DEVICE), modifier = Modifier.fillMaxWidth()) { ActionIcon(ActionSymbol.DEVICE); Text(strings[R.string.ui_device], Modifier.padding(start = 8.dp)) }
+                    OutlinedButton(onClick = { viewModel.chooseDownloadDestination(DownloadDestination.DESKTOP) }, enabled = !state.hasDownloadedGallery(gallery.id, DownloadDestination.DESKTOP), modifier = Modifier.fillMaxWidth()) { ActionIcon(ActionSymbol.PC); Text(strings[R.string.ui_desktop], Modifier.padding(start = 8.dp)) }
                 }
                 TextButton(onClick = { onSettings("downloads") }) { ActionIcon(ActionSymbol.SETTINGS); Text(strings[R.string.ui_download_settings], Modifier.padding(start = 8.dp)) }
             } }, confirmButton = {}, dismissButton = { TextButton(onClick = viewModel::cancelDownloadPrompt) { Text(strings[R.string.ui_cancel]) } })

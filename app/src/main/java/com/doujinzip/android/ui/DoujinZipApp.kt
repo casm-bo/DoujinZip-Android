@@ -467,6 +467,7 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
                         viewModel.searchFromLanguage(language)
                     },
                     onDownload = viewModel::downloadGallery,
+                    onRefresh = viewModel::refreshGalleryDetail,
                     options = {
                         val gallery = viewModel.uiState.galleryCache[galleryId] ?: viewModel.uiState.galleries.firstOrNull { it.id == galleryId }
                         gallery?.let {

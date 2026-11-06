@@ -82,6 +82,7 @@ import com.doujinzip.android.model.openLibraryReader
 import com.doujinzip.android.model.updateLibrarySeries
 import com.doujinzip.android.model.renameSeriesPages
 import com.doujinzip.android.model.reconcileSeriesPages
+import com.doujinzip.android.data.withoutDeletedBooks
 import com.doujinzip.android.model.selectSearchTab
 import com.doujinzip.android.model.selectTab
 import com.doujinzip.android.model.searchResultSessionIds
@@ -201,6 +202,7 @@ data class MainUiState(
     val viewedGalleryIds: Set<Long> = emptySet(),
     val recentHistory: List<RecentHistoryEntry> = emptyList(),
     val historyRecording: Boolean = true,
+    val refreshingGalleryIds: Set<Long> = emptySet(),
     val libraryLocations: List<StorageLocation> = emptyList(),
     val desktopLibraryLocations: List<StorageLocation> = emptyList(),
     val libraryBooks: List<LibraryBook> = emptyList(),
@@ -1580,6 +1582,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun refreshGalleryDetail(galleryId: Long) {
+        if (galleryId in uiState.refreshingGalleryIds || galleryId in uiState.readerLoadingGalleryIds) return
+        viewModelScope.launch {
+            uiState = uiState.copy(refreshingGalleryIds = uiState.refreshingGalleryIds + galleryId,
+                readerErrorsByGalleryId = uiState.readerErrorsByGalleryId - galleryId)
+            requestImportantLibraryRefresh()
+            refreshDownloads(silent = true)
+            try {
+                val gallery = hitomiClient.getGallery(galleryId)
+                val pages = hitomiClient.getGalleryPages(galleryId)
+                uiState = uiState.copy(galleryCache = cacheGalleries(uiState.galleryCache, listOf(gallery)),
+                    activeGallery = if (uiState.activeGallery?.id == galleryId) presentedGallery(gallery) else uiState.activeGallery,
+                    readerPagesByGalleryId = uiState.readerPagesByGalleryId + (galleryId to pages))
+                importantLibraryRefreshJob?.join()
+                libraryRefreshJob?.join()
+                downloadRefreshJob?.join()
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                uiState = uiState.copy(readerErrorsByGalleryId = uiState.readerErrorsByGalleryId +
+                    (galleryId to (error.message ?: strings[R.string.msg_could_not_load_pages])))
+            } finally {
+                uiState = uiState.copy(refreshingGalleryIds = uiState.refreshingGalleryIds - galleryId)
+            }
+        }
+    }
+
     fun setDownloadDestination(value: DownloadDestination) {
         browserPreferenceStore.saveDownloadDestination(value)
         uiState = uiState.copy(downloadDestination = value)
@@ -1611,7 +1639,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun downloadGallery(gallery: GallerySummary) {
         if (gallery.id in uiState.downloadingGalleryIds) return
-        if (requestStore.requests.value.any { it.galleryId == gallery.id && !it.isFinished }) {
+        if (uiState.allDownloadDestinationsOwned(gallery.id, requestStore.requests.value)) {
+            uiState = uiState.copy(message = strings[R.string.ui_completed], isError = false)
+            return
+        }
+        if (requestStore.requests.value.any { it.galleryId == gallery.id && (!it.isFinished || it.status == RequestStatus.SENT) }) {
             uiState = uiState.copy(message = strings[R.string.msg_already_in_the_download_list])
             return
         }
@@ -1623,14 +1655,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (destination == DownloadDestination.ASK || gallery.id in uiState.downloadingGalleryIds) return
         if (requestStore.requests.value.any { it.galleryId == gallery.id && !it.isFinished }) return
         val local = destination == DownloadDestination.DEVICE
+        if (uiState.hasDownloadedGallery(gallery.id, destination, requestStore.requests.value)) {
+            uiState = uiState.copy(message = strings[R.string.ui_completed], isError = false)
+            return
+        }
         val location = uiState.downloadLocation
         if (local && location == null) {
             downloadAfterFolder = gallery
             uiState = uiState.copy(pendingDownloadGallery = gallery, downloadFolderRequired = true)
-            return
-        }
-        if (local && uiState.libraryBooks.any { !it.isCloud && it.metadata.hitomiId?.toLongOrNull() == gallery.id }) {
-            uiState = uiState.copy(message = strings[R.string.msg_this_gallery_is_already_in_the_device_library], isError = true)
             return
         }
         val profile = if (local) null else selectedProfile()
@@ -1666,12 +1698,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun startLocalDownload(id: String) {
         val request = requestStore.requests.value.firstOrNull { it.id == id } ?: return
         if (!request.canDownloadLocally) return
-        val location = uiState.downloadLocation ?: run {
-            uiState = uiState.copy(downloadQueueError = strings[R.string.msg_choose_a_download_folder_first])
+        if (uiState.hasDownloadedGallery(request.galleryId, DownloadDestination.DEVICE, requestStore.requests.value)) {
+            uiState = uiState.copy(downloadQueueError = strings[R.string.msg_this_gallery_is_already_in_the_device_library])
             return
         }
-        if (uiState.libraryBooks.any { !it.isCloud && it.metadata.hitomiId?.toLongOrNull() == request.galleryId }) {
-            uiState = uiState.copy(downloadQueueError = strings[R.string.msg_this_gallery_is_already_in_the_device_library])
+        val location = uiState.downloadLocation ?: run {
+            uiState = uiState.copy(downloadQueueError = strings[R.string.msg_choose_a_download_folder_first])
             return
         }
         // Register the chosen folder once; the existing scanner/reader handles completed CBZs.
@@ -2481,7 +2513,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     .onSuccess { deletedIds += book.id }
                     .onFailure { failures += "${book.title}: ${it.message ?: strings[R.string.msg_deletion_failed]}" }
             }
-            if (deletedIds.isNotEmpty()) removeDeletedLibraryState(deletedIds)
+            if (deletedIds.isNotEmpty()) {
+                runCatching {
+                    withContext(Dispatchers.IO) { requestStore.update { it.withoutDeletedBooks(selectedBooks.filter { book -> book.id in deletedIds }, profile?.id) } }
+                }.onFailure { failures += it.message ?: strings[R.string.msg_deletion_failed] }
+                removeDeletedLibraryState(deletedIds)
+            }
             if (remoteBooks.isNotEmpty()) refreshLibrarySilently()
             val details = buildList {
                 if (remoteBooks.any { it.id in deletedIds }) {
