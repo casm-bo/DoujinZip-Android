@@ -5,6 +5,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class BrowserTabsOverviewTest {
+    @Test fun activeTabIsLocatedInDisplayedOrderIncludingGroupCards() {
+        val tabs = (1..20).map { BrowserTab(id = "tab$it") }
+        val workspace = BrowserWorkspace(tabs, "tab18").createGroup(setOf("tab2", "tab3"), "Fixture")
+        val items = workspace.overviewItems
+        assertEquals("tab:tab18", items[items.activeTabIndex("tab18")].key)
+        assertEquals("group:${workspace.groups.single().id}", items[items.activeTabIndex("tab3")].key)
+        assertEquals(1, tabs.take(3).map { BrowserOverviewItem.Tab(it) }.activeTabIndex("tab2"))
+        assertEquals(-1, items.activeTabIndex("missing"))
+    }
+
     @Test fun mergingGroupsPreservesDestinationStateOrderAndEveryHistory() {
         for (sourceArchived in listOf(false, true)) for (targetArchived in listOf(false, true)) {
             val tabs = (1..5).map { BrowserTab(id = "tab$it", history = listOf(BrowserPage.Search(query = "fixture$it"))) }

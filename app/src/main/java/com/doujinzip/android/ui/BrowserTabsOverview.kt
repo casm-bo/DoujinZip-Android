@@ -47,6 +47,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.first
 
+internal fun List<BrowserOverviewItem>.activeTabIndex(tabId: String): Int = indexOfFirst { item ->
+    when (item) {
+        is BrowserOverviewItem.Tab -> item.tab.id == tabId
+        is BrowserOverviewItem.Group -> item.tabs.any { it.id == tabId }
+    }
+}
+
 private val groupColors = listOf(Color(0xFF75CFFA), Color(0xFFF6C85F), Color(0xFF93D6A1),
     Color(0xFFC5A4ED), Color(0xFFF3A6B6), Color(0xFFB4BCC5))
 
@@ -90,13 +97,14 @@ internal fun BrowserTabsOverview(
     } }
     val latestWorkspace by rememberUpdatedState(workspace)
     val latestUpdate by rememberUpdatedState(onUpdate)
-    val selectedIndex = if (openGroup != null) items.indexOfFirst { it is BrowserOverviewItem.Tab && it.tab.id == workspace.activeTabId } else -1
+    val selectedIndex = items.activeTabIndex(workspace.activeTabId)
     val grid = key(openGroupId, groupsOnly) { rememberLazyGridState(initialFirstVisibleItemIndex = selectedIndex.coerceAtLeast(0)) }
     LaunchedEffect(grid, openGroupId) {
         if (selectedIndex < 0) return@LaunchedEffect
+        val selectedKey = items[selectedIndex].key
         grid.scrollToItem(selectedIndex)
-        val layout = snapshotFlow { grid.layoutInfo }.first { info -> info.visibleItemsInfo.any { it.key == "tab:${workspace.activeTabId}" } }
-        val item = layout.visibleItemsInfo.first { it.key == "tab:${workspace.activeTabId}" }
+        val layout = snapshotFlow { grid.layoutInfo }.first { info -> info.visibleItemsInfo.any { it.key == selectedKey } }
+        val item = layout.visibleItemsInfo.first { it.key == selectedKey }
         val center = (layout.viewportStartOffset + layout.viewportEndOffset) / 2
         grid.scrollBy((item.offset.y + item.size.height / 2 - center).toFloat())
     }
