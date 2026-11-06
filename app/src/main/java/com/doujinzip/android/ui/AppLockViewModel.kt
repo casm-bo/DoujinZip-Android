@@ -28,9 +28,26 @@ class AppLockViewModel @JvmOverloads constructor(application: Application, priva
     var biometricInProgress by mutableStateOf(false); private set
     var generation by mutableStateOf(0L); private set
     private var authorizedUntil = 0L
+    private var backupSavePending = false
+    private var backupSaveAway = false
     init { com.doujinzip.android.data.SubscriptionNotifications.session(application,!locked) }
 
-    fun onBackground() { com.doujinzip.android.data.SubscriptionNotifications.session(getApplication(),false); biometricSession.background(); generation = biometricSession.generation; biometricInProgress = false; authorizedUntil = 0; if (enabled) locked = true }
+    fun beginBackupSave() { backupSavePending = enabled && !locked; backupSaveAway = false }
+    fun finishBackupSave(saved: Boolean) {
+        val pending = backupSavePending || backupSaveAway
+        backupSavePending = false; backupSaveAway = false
+        if (pending && !saved) onBackground()
+        if (!locked) com.doujinzip.android.data.SubscriptionNotifications.session(getApplication(),true)
+    }
+    // The picker result clears the exemption before onResume; any other return must lock.
+    fun onForeground() { if (backupSavePending || backupSaveAway) onBackground() }
+    fun onBackground(allowBackupSave: Boolean = false) {
+        val keepUnlocked = allowBackupSave && backupSavePending && !locked
+        backupSavePending = false; backupSaveAway = keepUnlocked
+        com.doujinzip.android.data.SubscriptionNotifications.session(getApplication(),false)
+        biometricSession.background(); generation = biometricSession.generation; biometricInProgress = false; authorizedUntil = 0
+        if (enabled && !keepUnlocked) locked = true
+    }
     fun clearError() { error = null }
     fun verify(secret: String, settings: Boolean = false, completed: (Boolean) -> Unit = {}) {
         if (busy || secret.length > 128) return

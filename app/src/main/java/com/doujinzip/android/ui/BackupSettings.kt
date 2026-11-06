@@ -37,6 +37,7 @@ internal fun BackupSettings(onPrepare: suspend (String) -> File, onOpenConnectio
     var failureDialog by remember { mutableStateOf(false) }
     fun failed(reason: Int = R.string.backup_failed) { error = true; message = strings[reason]; failureDialog = true }
     val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        lock.finishBackupSave(saved = uri != null)
         if (uri == null) {
             readyPath?.let { File(it).delete() }
             readyPath = null
@@ -55,9 +56,11 @@ internal fun BackupSettings(onPrepare: suspend (String) -> File, onOpenConnectio
             try {
                 val file = onPrepare(AppCompatDelegate.getApplicationLocales().toLanguageTags())
                 readyPath = file.absolutePath
+                lock.beginBackupSave()
                 save.launch("doujin-backup-${java.time.LocalDate.now()}.zip")
             } catch (failure: Exception) {
                 if (failure is kotlinx.coroutines.CancellationException) throw failure
+                lock.finishBackupSave(saved = false)
                 readyPath?.let { File(it).delete() }
                 readyPath = null
                 failed(R.string.backup_prepare_failed)

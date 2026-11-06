@@ -43,14 +43,28 @@ class BackupExportUiTest {
         assertTrue(completed.get())
     }
 
-    @Test fun exportWritesPreparedSnapshotWithoutPreparingTwice() {
+    @Test fun exportWritesPreparedSnapshotWithoutPreparingTwice() = verifyExport(pin = false)
+    @Test fun pinProtectedExportDoesNotLockAgainAfterSuccessfulSave() = verifyExport(pin = true)
+
+    private fun verifyExport(pin: Boolean) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val lock = AppLockViewModel(context.applicationContext as Application, AppLockStore(context, "synthetic-backup-ui-lock"))
+        val store = AppLockStore(context, "synthetic-backup-ui-lock")
+        if (pin) store.save(com.doujinzip.android.security.LockCredential.create(com.doujinzip.android.security.LockMethod.PIN, "142857")) else store.clear()
+        val lock = AppLockViewModel(context.applicationContext as Application, store)
+        fun unlock() {
+            val completed = AtomicBoolean(false)
+            compose.runOnIdle { lock.verify("142857") { assertTrue(it); completed.set(true) } }
+            compose.waitUntil(5_000) { completed.get() }
+        }
         val source = java.io.File.createTempFile("synthetic-backup-source", ".zip", context.cacheDir)
         val destination = java.io.File.createTempFile("synthetic-backup-target", ".zip", context.cacheDir)
         val registry = object : ActivityResultRegistry() {
             override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
+                lock.onBackground(allowBackupSave = true)
+                org.junit.Assert.assertFalse(lock.locked)
                 dispatchResult(requestCode, Uri.fromFile(destination))
+                lock.onForeground()
+                org.junit.Assert.assertFalse(lock.locked)
             }
         }
         val owner = object : ActivityResultRegistryOwner { override val activityResultRegistry = registry }
@@ -62,11 +76,18 @@ class BackupExportUiTest {
                     BackupSettings(onPrepare = { preparations++; source }, onOpenConnection = {})
                 }
             } }
+            if (pin) unlock()
             compose.onNodeWithText(context.getString(R.string.backup_export)).performClick()
+            if (pin) {
+                compose.onNodeWithText(context.getString(R.string.ui_confirm)).performClick()
+                unlock()
+            }
             compose.waitUntil(5_000) { compose.onAllNodesWithText(context.getString(R.string.backup_saved)).fetchSemanticsNodes().isNotEmpty() }
             assertEquals("synthetic backup bytes", destination.readText())
             assertEquals(1, preparations)
+            compose.runOnIdle { lock.onBackground(); assertEquals(pin, lock.locked) }
         } finally {
+            store.clear()
             source.delete()
             destination.delete()
         }

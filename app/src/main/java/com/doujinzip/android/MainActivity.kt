@@ -63,14 +63,36 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val appLock: AppLockViewModel by viewModels()
+    private val screenOffReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context, intent: Intent) {
+            if (intent.action == Intent.ACTION_SCREEN_OFF) { appLock.onBackground(); biometricPrompt?.cancelAuthentication() }
+        }
+    }
+
+    override fun onResume() {
+        appLock.onForeground()
+        super.onResume()
+    }
 
     override fun onStop() {
-        if (!isChangingConfigurations) { appLock.onBackground(); biometricPrompt?.cancelAuthentication() }
+        if (!isChangingConfigurations) {
+            val interactive = getSystemService(android.os.PowerManager::class.java).isInteractive
+            val deviceLocked = getSystemService(android.app.KeyguardManager::class.java).isDeviceLocked
+            appLock.onBackground(allowBackupSave = interactive && !deviceLocked)
+            biometricPrompt?.cancelAuthentication()
+        }
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        unregisterReceiver(screenOffReceiver)
+        super.onDestroy()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        androidx.core.content.ContextCompat.registerReceiver(this, screenOffReceiver,
+            android.content.IntentFilter(Intent.ACTION_SCREEN_OFF), androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
         val backupRuntime = getSharedPreferences("backup_runtime", MODE_PRIVATE)
         if (backupRuntime.contains("locale")) {
             val tags = backupRuntime.getString("locale", "").orEmpty()

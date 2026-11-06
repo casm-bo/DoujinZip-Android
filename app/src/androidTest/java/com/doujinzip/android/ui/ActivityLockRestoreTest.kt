@@ -17,6 +17,40 @@ import org.junit.Test
 class ActivityLockRestoreTest {
     @get:Rule val compose = createEmptyComposeRule()
 
+    @Test fun saveResultReturnsUnlockedButOrdinaryActivityReturnStillLocks() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        check(context.packageName.endsWith(".uitest"))
+        val store = AppLockStore(context)
+        val previous = store.read()
+        lateinit var lock: AppLockViewModel
+        try {
+            store.save(LockCredential.create(LockMethod.PIN, "142857"))
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                val unlocked = java.util.concurrent.CountDownLatch(1)
+                scenario.onActivity {
+                    lock = androidx.lifecycle.ViewModelProvider(it)[AppLockViewModel::class.java]
+                    lock.verify("142857") { accepted -> assertTrue(accepted); unlocked.countDown() }
+                }
+                assertTrue(unlocked.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                instrumentation.runOnMainSync { lock.beginBackupSave() }
+                scenario.moveToState(Lifecycle.State.CREATED)
+                instrumentation.runOnMainSync {
+                    assertFalse(lock.locked)
+                    lock.finishBackupSave(true)
+                }
+                scenario.moveToState(Lifecycle.State.RESUMED)
+                instrumentation.runOnMainSync {
+                    assertFalse(lock.locked)
+                    lock.beginBackupSave()
+                }
+                scenario.moveToState(Lifecycle.State.CREATED)
+                scenario.moveToState(Lifecycle.State.RESUMED)
+                instrumentation.runOnMainSync { assertTrue(lock.locked) }
+            }
+        } finally { if (previous == null) store.clear() else store.save(previous) }
+    }
+
     @Test fun realActivityUnlocksAndRelocksWithoutChangingSecurityOrOpeningPosition() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         check(context.packageName.endsWith(".uitest"))

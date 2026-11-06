@@ -11,6 +11,51 @@ class AppLockStateTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
 
+    @Test fun backupSaveExemptionIsOneShotAndNeverUnlocksAfterOtherBackgrounding() {
+        val store = AppLockStore(context, "app_lock_backup_save_test")
+        lateinit var lock: AppLockViewModel
+        fun unlock() {
+            val completed = java.util.concurrent.CountDownLatch(1)
+            instrumentation.runOnMainSync { lock.verify("142857") { assertTrue(it); completed.countDown() } }
+            assertTrue(completed.await(5, java.util.concurrent.TimeUnit.SECONDS))
+        }
+        try {
+            store.save(LockCredential.create(LockMethod.PIN, "142857"))
+            instrumentation.runOnMainSync {
+                lock = AppLockViewModel(context.applicationContext as Application, store)
+                lock.beginBackupSave(); lock.onBackground(allowBackupSave = true); lock.finishBackupSave(true)
+                assertTrue("A locked session cannot grant an exemption", lock.locked)
+            }
+            unlock()
+            instrumentation.runOnMainSync {
+                lock.beginBackupSave(); lock.onBackground(allowBackupSave = true)
+                assertFalse(lock.locked)
+                lock.finishBackupSave(true); lock.onForeground()
+                assertFalse("Successful save returns without another PIN", lock.locked)
+                lock.onBackground(allowBackupSave = true)
+                assertTrue("The exemption must be consumed", lock.locked)
+            }
+            unlock()
+            instrumentation.runOnMainSync {
+                lock.beginBackupSave(); lock.onBackground(allowBackupSave = true); lock.onForeground()
+                assertTrue("Returning without a picker result must lock", lock.locked)
+                lock.finishBackupSave(true)
+                assertTrue("A late result cannot unlock", lock.locked)
+            }
+            unlock()
+            instrumentation.runOnMainSync {
+                lock.beginBackupSave(); lock.onBackground(allowBackupSave = true); lock.onBackground()
+                lock.finishBackupSave(true)
+                assertTrue("Screen-off cancels the exemption", lock.locked)
+            }
+            unlock()
+            instrumentation.runOnMainSync {
+                lock.beginBackupSave(); lock.onBackground(allowBackupSave = true); lock.finishBackupSave(false)
+                assertTrue("Cancelling the picker keeps the normal lock", lock.locked)
+            }
+        } finally { store.clear() }
+    }
+
     @Test fun validBiometricResetsAppFailuresButSettingsStillNeedAppCredential() {
         val store = AppLockStore(context, "app_lock_success_test")
         try {
