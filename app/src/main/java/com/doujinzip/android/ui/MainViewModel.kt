@@ -2625,6 +2625,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (book?.isCloud == true) {
             val profile = selectedProfile() ?: return
             val syncId = book.syncId ?: return
+            recordLibraryHistory(book, normalizedPage)
             if (uiState.libraryProgress[bookId] == normalizedPage) return
             libraryPreferenceStore.saveBookProgress(bookId, normalizedPage)
             uiState = uiState.copy(libraryProgress = uiState.libraryProgress + (bookId to normalizedPage))
