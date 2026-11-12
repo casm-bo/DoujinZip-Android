@@ -9,6 +9,7 @@ import com.doujinzip.android.network.HitomiThumbnailInterceptor
 class DoujinZipApplication : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         super.onCreate()
+        com.doujinzip.android.data.CrashDiagnostics.install(this)
         com.doujinzip.android.data.LocalBackupStore(this).applyPending()
         androidx.work.WorkManager.initialize(this, androidx.work.Configuration.Builder().build())
     }

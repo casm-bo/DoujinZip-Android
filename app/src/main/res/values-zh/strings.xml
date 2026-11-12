@@ -318,7 +318,7 @@
     <string name="ui_view_features_and_changes_for_each_version">"查看各版本的新功能与变更。"</string>
     <string name="ui_changelog">"更新记录"</string>
     <string name="ui_troubleshooting">"问题排查"</string>
-    <string name="ui_diagnostics_include_only_app_device_versions_and_status_counts">"诊断信息仅包含应用、设备版本和状态数量。"</string>
+    <string name="ui_diagnostics_report_contents">"诊断信息包含应用和设备版本、状态数量以及最近一次应用崩溃的摘要。 "</string>
     <string name="ui_no_connection_addresses_credentials_titles_or_file_paths_are_i">"不包含连接地址、凭据、作品名称或文件路径。"</string>
     <string name="ui_send_diagnostics">"发送诊断信息"</string>
     <string name="ui_reader">"阅读器"</string>

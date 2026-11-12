@@ -318,7 +318,7 @@
     <string name="ui_view_features_and_changes_for_each_version">"バージョンごとの新機能と変更点を確認します。"</string>
     <string name="ui_changelog">"更新履歴"</string>
     <string name="ui_troubleshooting">"問題の解決"</string>
-    <string name="ui_diagnostics_include_only_app_device_versions_and_status_counts">"診断情報にはアプリ・端末のバージョンと状態件数のみ含まれます。"</string>
+    <string name="ui_diagnostics_report_contents">"診断情報にはアプリ・端末のバージョン、状態件数、最後のアプリクラッシュの概要が含まれます。 "</string>
     <string name="ui_no_connection_addresses_credentials_titles_or_file_paths_are_i">"接続先・認証情報・作品名・パスは含まれません。"</string>
     <string name="ui_send_diagnostics">"診断データを送信"</string>
     <string name="ui_reader">"リーダー"</string>

@@ -318,7 +318,7 @@
     <string name="ui_view_features_and_changes_for_each_version">"버전별 새로운 기능과 변경 사항을 확인합니다."</string>
     <string name="ui_changelog">"업데이트 기록"</string>
     <string name="ui_troubleshooting">"문제 해결"</string>
-    <string name="ui_diagnostics_include_only_app_device_versions_and_status_counts">"진단 정보에는 앱·기기 버전과 상태 개수만 포함됩니다. "</string>
+    <string name="ui_diagnostics_report_contents">"진단 정보에는 앱·기기 버전, 상태 개수, 마지막 앱 크래시 요약이 포함됩니다. "</string>
     <string name="ui_no_connection_addresses_credentials_titles_or_file_paths_are_i">"연결 주소, 인증 정보, 작품명과 파일 경로는 포함하지 않습니다."</string>
     <string name="ui_send_diagnostics">"진단 데이터 보내기"</string>
     <string name="ui_reader">"리더"</string>

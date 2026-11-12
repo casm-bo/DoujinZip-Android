@@ -6,19 +6,20 @@ import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import com.doujinzip.android.BuildConfig
+import com.doujinzip.android.data.CrashDiagnostics
 
 internal fun openGitHubIssue(context: Context, state: MainUiState) {
     val body = """
-        ## 문제 설명
-
-        ## 재현 방법
-        1.
-
-        ## 진단 정보
-        ```text
-        ${buildDiagnosticReport(context, state)}
-        ```
-    """.trimIndent()
+        |## 문제 설명
+        |
+        |## 재현 방법
+        |1.
+        |
+        |## 진단 정보
+        |```text
+        |${buildDiagnosticReport(context, state)}
+        |```
+    """.trimMargin()
     val uri = Uri.parse("https://github.com/casm-bo/doujin-menu-android/issues/new")
         .buildUpon()
         .appendQueryParameter("title", "[Bug] ")
@@ -39,6 +40,7 @@ private fun buildDiagnosticReport(context: Context, state: MainUiState): String 
         androidVersion = "${Build.VERSION.RELEASE} / SDK ${Build.VERSION.SDK_INT}",
         device = "${Build.MANUFACTURER} ${Build.MODEL}",
         orientation = orientation,
+        latestCrash = CrashDiagnostics.latest(context),
     )
 }
 
@@ -48,6 +50,7 @@ internal fun buildDiagnosticReport(
     androidVersion: String,
     device: String,
     orientation: String,
+    latestCrash: String? = null,
 ): String = buildString {
     appendLine("App: $appVersion")
     appendLine("Android: $androidVersion")
@@ -66,4 +69,8 @@ internal fun buildDiagnosticReport(
     appendLine("Viewer scale: ${state.viewerPreferences.scale}")
     appendLine("Reading direction: ${state.viewerPreferences.readingDirection}")
     appendLine("Page turn: ${state.viewerPreferences.pageTurnMode}")
+    if (latestCrash != null) {
+        appendLine("Last crash:")
+        appendLine(latestCrash.trimEnd())
+    }
 }

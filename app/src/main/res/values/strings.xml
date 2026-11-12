@@ -318,7 +318,7 @@
     <string name="ui_view_features_and_changes_for_each_version">"View features and changes for each version."</string>
     <string name="ui_changelog">"Changelog"</string>
     <string name="ui_troubleshooting">"Troubleshooting"</string>
-    <string name="ui_diagnostics_include_only_app_device_versions_and_status_counts">"Diagnostics include only app/device versions and status counts. "</string>
+    <string name="ui_diagnostics_report_contents">"Diagnostics include app/device versions, status counts, and a summary of the last app crash. "</string>
     <string name="ui_no_connection_addresses_credentials_titles_or_file_paths_are_i">"No connection addresses, credentials, titles or file paths are included."</string>
     <string name="ui_send_diagnostics">"Send diagnostics"</string>
     <string name="ui_reader">"Reader"</string>

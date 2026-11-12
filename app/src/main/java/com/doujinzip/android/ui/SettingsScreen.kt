@@ -403,7 +403,7 @@ private fun SupportSettingsScreen(
         }
         SectionCard(strings[R.string.ui_troubleshooting]) {
             Text(
-                strings[R.string.ui_diagnostics_include_only_app_device_versions_and_status_counts] +
+                strings[R.string.ui_diagnostics_report_contents] +
                     strings[R.string.ui_no_connection_addresses_credentials_titles_or_file_paths_are_i],
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
