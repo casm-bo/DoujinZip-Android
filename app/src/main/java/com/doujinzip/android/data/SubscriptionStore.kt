@@ -41,15 +41,19 @@ class SubscriptionStore internal constructor(context: Context, databaseName: Str
         } else null
         require(old?.conflict == null) { "PC와 충돌한 변경을 먼저 해결하세요." }
         val saved = value.copy(id = old?.value?.id ?: value.id, version = old?.value?.version ?: value.version)
-        put(scope, saved, UUID.randomUUID().toString())
-        if (old?.value?.conditionKey != condition || (old.value.deleted && !saved.deleted)) {
+        val revived = old?.value?.deleted == true && !saved.deleted
+        put(scope, saved, UUID.randomUUID().toString(), moveToEnd = revived)
+        if (old?.value?.conditionKey != condition || revived) {
             writableDatabase.execSQL("UPDATE subscriptions SET baseline=NULL,checked=0 WHERE scope=? AND id=?", arrayOf(scope, saved.id))
         }
     }
-    private fun put(scope: String, value: SearchSubscription, mutation: String?, conflict: SearchSubscription? = null) {
+    private fun put(scope: String, value: SearchSubscription, mutation: String?, conflict: SearchSubscription? = null, moveToEnd: Boolean = false) {
         val values = ContentValues().apply { put("payload", value.json().toString()); put("mutation", mutation); put("conflict", conflict?.json()?.toString()) }
         if (writableDatabase.update("subscriptions", values, "scope=? AND id=?", arrayOf(scope, value.id)) == 0) {
             values.put("scope", scope); values.put("id", value.id); writableDatabase.insertOrThrow("subscriptions", null, values)
+        } else if (moveToEnd) {
+            // Registration order follows rowid, while sync and notice matches use the stable ID.
+            writableDatabase.execSQL("UPDATE subscriptions SET rowid=(SELECT MAX(rowid)+1 FROM subscriptions) WHERE scope=? AND id=?", arrayOf(scope, value.id))
         }
     }
     @Synchronized fun migrateFavorites(context: Context, scope: String) = transaction {
@@ -124,7 +128,7 @@ class SubscriptionStore internal constructor(context: Context, databaseName: Str
             old.value.copy(version = value.version) == value -> put(scope, value, null)
             old.mutationId != null -> put(scope,old.value,old.mutationId,value)
             else -> {
-                put(scope,value,null)
+                put(scope,value,null,moveToEnd=old.value.deleted && !value.deleted)
                 if(old.value.conditionKey != value.conditionKey) writableDatabase.execSQL("UPDATE subscriptions SET baseline=NULL,checked=0 WHERE scope=? AND id=?", arrayOf(scope,value.id))
             }
         }
@@ -159,7 +163,7 @@ class SubscriptionStore internal constructor(context: Context, databaseName: Str
             writableDatabase.delete("subscriptions", "scope=? AND id=?", arrayOf(scope,id))
         }
         val selected=if(keepPhone) old.value.copy(id=remote.id,version=remote.version) else remote
-        put(scope,selected,if(keepPhone) UUID.randomUUID().toString() else null)
+        put(scope,selected,if(keepPhone) UUID.randomUUID().toString() else null,moveToEnd=remote.id == id && old.value.deleted && !selected.deleted)
         if(selected.conditionKey != old.value.conditionKey) writableDatabase.execSQL("UPDATE subscriptions SET baseline=NULL,checked=0 WHERE scope=? AND id=?",arrayOf(scope,selected.id))
     }
     @Synchronized fun state(key: String): String? = readableDatabase.rawQuery("SELECT value FROM state WHERE key=?", arrayOf(key)).use { if(it.moveToFirst()) it.getString(0) else null }

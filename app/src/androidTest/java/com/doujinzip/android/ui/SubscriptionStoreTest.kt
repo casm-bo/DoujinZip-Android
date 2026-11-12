@@ -63,24 +63,46 @@ class SubscriptionStoreTest {
             assertNull(store.records("pc").single().conflict)
         }
     }
-    @Test fun explicitResubscribeReusesTheDeletedIdAndRestartsMonitoring() {
+    @Test fun resubscribeKeepsIdAndRestartsRegistrationOrderAndMonitoring() {
         SubscriptionStore(context, null).use { store ->
-            val old = SearchSubscription(id = "fixture", name = "Before", query = "tag:example", enabled = true)
-            store.receive("pc", old.copy(version = 1))
-            store.checked("pc", old, listOf(12), emptyList(), 100)
-            store.receive("pc", old.copy(deleted = true, version = 2))
+            val old = SearchSubscription(id = "search1", name = "search1", query = "tag:example", enabled = true, version = 1)
+            store.receive("pc", old)
+            assertTrue(store.checked("pc", old, listOf(12), emptyList(), 100))
+            store.save("pc", SearchSubscription(id = "search2", name = "search2", query = "tag:second"))
+            store.save("pc", SearchSubscription(id = "search3", name = "search3", query = "tag:third"))
+            store.save("pc", old.copy(deleted = true))
+            val deletion = store.records("pc").first()
+            store.receive("pc", deletion.value.copy(version = 2), requireNotNull(deletion.mutationId))
 
-            val fresh = old.copy(id = "new-fixture", name = "After")
+            val fresh = old.copy(id = "new-fixture", version = 0)
             store.save("pc", fresh, resubscribe = true)
-            val record = store.records("pc").single()
+            val records = store.records("pc")
+            assertEquals(listOf("search2", "search3", "search1"), sortSavedSubscriptions(records, 2).map { it.value.name })
+            assertEquals(listOf("search1", "search3", "search2"), sortSavedSubscriptions(records, 0).map { it.value.name })
+            val record = records.last()
             assertEquals(fresh.copy(id = old.id, version = 2), record.value)
             assertNotNull(record.mutationId)
             assertNull(record.baseline)
             assertEquals(0L, record.checkedAt)
 
             store.receive("pc", old.copy(deleted = true, version = 2))
-            assertFalse(store.records("pc").single().value.deleted)
-            assertNull(store.records("pc").single().conflict)
+            assertFalse(store.records("pc").last().value.deleted)
+            assertNull(store.records("pc").last().conflict)
+            store.receive("pc", old.copy(version = 3), record.mutationId)
+            store.save("pc", records.first().value.copy(name = "Renamed"))
+            assertEquals(listOf("search2", "search3", "search1"), store.records("pc").map { it.value.id })
+        }
+    }
+
+    @Test fun syncedResubscribeMovesToNewestRegistration() {
+        SubscriptionStore(context, null).use { store ->
+            val first = SearchSubscription(id = "first", name = "First", query = "tag:first", version = 1)
+            val second = SearchSubscription(id = "second", name = "Second", query = "tag:second", version = 1)
+            store.receive("pc", first)
+            store.receive("pc", second)
+            store.receive("pc", first.copy(deleted = true, version = 2))
+            store.receive("pc", first.copy(version = 3))
+            assertEquals(listOf(second, first.copy(version = 3)), store.records("pc").map { it.value })
         }
     }
 
