@@ -102,6 +102,57 @@ class SubscriptionNotificationTest {
             browser.saveBrowserWorkspace(oldWorkspace);browser.saveActiveGalleryWorkspace(oldGallery);browser.saveMainDestination(oldDestination)
         }
     }
+    @Test fun backFromInAppNoticeGalleryReturnsToNotices() {
+        check(context.packageName.endsWith(".uitest"))
+        val lock = AppLockStore(context)
+        val previousLock = lock.read()
+        val profiles = SecureProfileStore(context)
+        val previousProfiles = profiles.load()
+        val browser = BrowserPreferenceStore(context)
+        val previousWorkspace = browser.loadBrowserWorkspace()
+        val previousGalleryWorkspace = browser.loadActiveGalleryWorkspace()
+        val previousDestination = browser.loadMainDestination()
+        try {
+            lock.clear()
+            profiles.save(emptyList())
+            seed()
+            browser.saveBrowserWorkspace(BrowserWorkspace.initial())
+            browser.saveActiveGalleryWorkspace(false)
+            browser.saveMainDestination("browser")
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                val notifications = context.getString(R.string.sub_notifications)
+                val title = "Synthetic private title"
+                compose.waitUntil(10_000) {
+                    compose.onAllNodesWithContentDescription(notifications).fetchSemanticsNodes().isNotEmpty()
+                }
+                compose.onNodeWithContentDescription(notifications).performClick()
+                compose.waitUntil(10_000) {
+                    compose.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
+                }
+                compose.onNodeWithText(title).performClick()
+                compose.waitUntil(10_000) {
+                    (browser.loadBrowserWorkspace().activeTab.currentPage as? BrowserPage.OnlineGallery)?.galleryId == galleryId
+                }
+                val noticeTab = hasText("$notifications (", substring = true)
+                compose.waitUntil(10_000) {
+                    compose.onAllNodes(noticeTab).fetchSemanticsNodes().isEmpty() &&
+                        compose.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
+                }
+                scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+                compose.onNode(noticeTab).assertIsDisplayed()
+                compose.onNodeWithText(title).assertIsDisplayed()
+                assertTrue(SubscriptionStore.get(context).notices("").first { it.galleryId == galleryId }.read)
+                assertTrue(browser.loadBrowserWorkspace().activeTab.currentPage is BrowserPage.Search)
+            }
+        } finally {
+            cleanup()
+            if (previousLock == null) lock.clear() else lock.save(previousLock)
+            profiles.save(previousProfiles)
+            browser.saveBrowserWorkspace(previousWorkspace)
+            browser.saveActiveGalleryWorkspace(previousGalleryWorkspace)
+            browser.saveMainDestination(previousDestination)
+        }
+    }
     @Test fun changingIntervalUpdatesOneDurableNetworkConstrainedPeriodicJob() {
         val options=SubscriptionPreferences(context);val previous=options.load()
         try {

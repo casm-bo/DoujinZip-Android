@@ -43,6 +43,7 @@ sealed interface BrowserPage {
         val title: String,
         override val key: String = UUID.randomUUID().toString(),
         val previewPosition: ReaderPosition = ReaderPosition(0),
+        val returnToSubscriptionNotices: Boolean = false,
     ) : BrowserPage
 
     data class LibraryBook(

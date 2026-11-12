@@ -167,7 +167,7 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
         properties=androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth=false,securePolicy=androidx.compose.ui.window.SecureFlagPolicy.Inherit)) {
         Surface(Modifier.fillMaxSize()) {
             SubscriptionScreen(viewModel.uiState,viewModel::closeSubscriptions,{viewModel.openSubscriptions(it)},
-                {viewModel.refreshSubscriptions(true)}, {viewModel.markSubscriptionRead(it)}, viewModel::editSubscription,
+                {viewModel.refreshSubscriptions(true)}, {viewModel.markSubscriptionRead(it, returnToSubscriptionNotices = true)}, viewModel::editSubscription,
                 viewModel::saveSubscription,viewModel::resolveSubscription,{ value ->
                     viewModel.closeSubscriptions()
                     lastMainDestination=MainDestination.Browser.route

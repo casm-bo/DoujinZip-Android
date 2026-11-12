@@ -526,7 +526,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             uiState=uiState.copy(subscriptionOptions=options)
         }
     }
-    fun markSubscriptionRead(id:Long?=null) {
+    fun markSubscriptionRead(id:Long?=null, returnToSubscriptionNotices: Boolean = false) {
         val scope=uiState.selectedProfileId.orEmpty()
         viewModelScope.launch {
             var gallery:GallerySummary?=null
@@ -539,7 +539,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if(id != null && scope == uiState.selectedProfileId.orEmpty()) {
                 closeSubscriptions()
                 gallery?.let { uiState=uiState.copy(galleryCache=cacheGalleries(uiState.galleryCache,listOf(it))) }
-                selectGallery(id)
+                selectGallery(id, returnToSubscriptionNotices)
             }
             reloadSubscriptions(); scheduleLibrarySync(force=true)
         }
@@ -1103,12 +1103,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return result
     }
 
-    fun selectGallery(galleryId: Long) {
+    fun selectGallery(galleryId: Long, returnToSubscriptionNotices: Boolean = false) {
         val gallery = uiState.galleryCache[galleryId]
             ?: uiState.galleries.firstOrNull { it.id == galleryId }
             ?: return
         val workspace = uiState.browserWorkspace.pushPage(
-            BrowserPage.OnlineGallery(galleryId, gallery.title),
+            BrowserPage.OnlineGallery(galleryId, gallery.title, returnToSubscriptionNotices = returnToSubscriptionNotices),
         )
         uiState = uiState.copy(
             activeGallery = presentedGallery(gallery),
@@ -1234,7 +1234,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun goBackInBrowserTab(): Boolean {
         if (returnFromNewTab(false)) return true
         if (!canGoBackInBrowserTab()) return false
+        val page = uiState.browserWorkspace.activeTab.currentPage
         applyBrowserWorkspace(uiState.browserWorkspace.goBack(), reload = true)
+        if (page is BrowserPage.OnlineGallery && page.returnToSubscriptionNotices) openSubscriptions()
         return true
     }
 
