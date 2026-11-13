@@ -3121,7 +3121,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val originIsGallery = navigationPage is BrowserPage.LibraryHome || navigationPage is BrowserPage.LibrarySeries || navigationPage is BrowserPage.LibraryBook || navigationPage is BrowserPage.LibraryReader
         val origin = if (originIsGallery) uiState.galleryWorkspace else uiState.browserWorkspace
         val current = uiState.browserWorkspace
-        val existing = current.selectSearchTab(query, preferredLanguages)
+        val fromSubscriptionNotice = (navigationPage as? BrowserPage.OnlineGallery)?.returnToSubscriptionNotices == true
+        val existing = if (fromSubscriptionNotice) null else current.selectSearchTab(query, preferredLanguages)
         if (existing != null) {
             val page = existing.activeTab.currentPage as BrowserPage.Search
             applyBrowserWorkspace(existing, reload = true)

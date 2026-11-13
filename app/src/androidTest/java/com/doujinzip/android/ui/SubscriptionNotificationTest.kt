@@ -102,7 +102,7 @@ class SubscriptionNotificationTest {
             browser.saveBrowserWorkspace(oldWorkspace);browser.saveActiveGalleryWorkspace(oldGallery);browser.saveMainDestination(oldDestination)
         }
     }
-    @Test fun backFromInAppNoticeGalleryReturnsToNotices() {
+    @Test fun backFromArtistSearchReturnsToNoticeGalleryThenNotices() {
         check(context.packageName.endsWith(".uitest"))
         val lock = AppLockStore(context)
         val previousLock = lock.read()
@@ -116,7 +116,9 @@ class SubscriptionNotificationTest {
             lock.clear()
             profiles.save(emptyList())
             seed()
-            browser.saveBrowserWorkspace(BrowserWorkspace.initial())
+            val artistQuery = "artist:synthetic_private_artist"
+            val workspace = BrowserWorkspace.initial(BrowserPage.Search(query = artistQuery)).openTab()
+            browser.saveBrowserWorkspace(workspace)
             browser.saveActiveGalleryWorkspace(false)
             browser.saveMainDestination("browser")
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
@@ -138,11 +140,26 @@ class SubscriptionNotificationTest {
                     compose.onAllNodes(noticeTab).fetchSemanticsNodes().isEmpty() &&
                         compose.onAllNodesWithText(title).fetchSemanticsNodes().isNotEmpty()
                 }
+                compose.onNodeWithText("Synthetic private artist").performClick()
+                compose.waitUntil(10_000) {
+                    val searchWorkspace = browser.loadBrowserWorkspace()
+                    searchWorkspace.tabs.size == 3 &&
+                        (searchWorkspace.activeTab.currentPage as? BrowserPage.Search)?.query == artistQuery
+                }
+                compose.waitForIdle()
+                scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+                compose.waitUntil(10_000) {
+                    val page = browser.loadBrowserWorkspace().activeTab.currentPage as? BrowserPage.OnlineGallery
+                    page?.galleryId == galleryId &&
+                        compose.onAllNodesWithText("Synthetic private artist").fetchSemanticsNodes().isNotEmpty()
+                }
+                compose.onNode(noticeTab).assertDoesNotExist()
                 scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
                 compose.onNode(noticeTab).assertIsDisplayed()
                 compose.onNodeWithText(title).assertIsDisplayed()
                 assertTrue(SubscriptionStore.get(context).notices("").first { it.galleryId == galleryId }.read)
                 assertTrue(browser.loadBrowserWorkspace().activeTab.currentPage is BrowserPage.Search)
+                assertEquals(workspace.tabs.map { it.id }, browser.loadBrowserWorkspace().tabs.map { it.id })
             }
         } finally {
             cleanup()
