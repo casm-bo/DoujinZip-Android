@@ -16,6 +16,9 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.semantics.text
@@ -137,6 +140,7 @@ internal fun WorkCard(
     border: BorderStroke? = null,
     selected: Boolean = false,
     webtoon: Boolean = false,
+    artistLinks: List<Pair<String, () -> Unit>> = emptyList(),
     cover: @Composable BoxScope.() -> Unit,
 ) {
     val density = LocalDensity.current
@@ -151,7 +155,14 @@ internal fun WorkCard(
     @Composable fun Body(modifier: Modifier) {
         Column(modifier.height(bodyHeight).padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, style = typography.titleSmall, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(artist, style = typography.bodySmall, color = MaterialTheme.colorScheme.primary, minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val artistText = buildAnnotatedString {
+                if (artistLinks.isEmpty()) append(artist)
+                artistLinks.forEachIndexed { index, (name, search) ->
+                    if (index > 0) append(", ")
+                    withLink(LinkAnnotation.Clickable(name, linkInteractionListener = { search() })) { append(name) }
+                }
+            }
+            Text(artistText, style = typography.bodySmall, color = MaterialTheme.colorScheme.primary, minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(metadata, style = typography.labelSmall, minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val displayTags = if (webtoon) listOf(CardTag(TagDisplayInfo(androidx.compose.ui.platform.LocalResources.current[com.doujinzip.android.R.string.ui_webtoon_tag], TagStyle.DEFAULT))) +
                 tags.filterNot { it.info.text.equals("webtoon", true) } else tags

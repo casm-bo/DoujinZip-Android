@@ -169,7 +169,7 @@ internal fun SubscriptionFeedScreen(
                     read=gallery.id in state.viewedGalleryIds || book?.id in state.libraryReadIds || "online:${gallery.id}" in state.libraryReadIds,
                     libraryBook=book,favorite=book?.id in state.libraryFavoriteIds || "online:${gallery.id}" in state.libraryFavoriteIds,
                     onToggleFavorite={rememberGallery(); onFavorite("online:${gallery.id}")},onClick={rememberGallery(); onOpen(gallery.id)},
-                    onLongClick={rememberGallery(); onLongClick(gallery.id)},onSearchFacet=onFacet)
+                    onLongClick={rememberGallery(); onLongClick(gallery.id)},onSearchFacet=onFacet,linkArtists=true)
             }
             if(indexReady && galleries.size<ids.size && error==null) item(key = "feed-page-loader", span = { GridItemSpan(maxLineSpan) }) {
                 val loaderVisible by remember { derivedStateOf { listState.layoutInfo.visibleItemsInfo.any { it.key == "feed-page-loader" } } }

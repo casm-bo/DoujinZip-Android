@@ -273,8 +273,13 @@ fun BrowserScreen(
     var gridColumns by rememberSaveable { mutableIntStateOf(viewPreferences.loadSearchGridColumns()) }
     val feedPreferences=remember(context) { context.getSharedPreferences("subscription_feed", Context.MODE_PRIVATE) }
     val feedOpenKey="open-${state.selectedProfileId.orEmpty()}"
-    var showFeed by rememberSaveable(state.selectedProfileId) { mutableStateOf(feedPreferences.getBoolean(feedOpenKey,false)) }
-    LaunchedEffect(showFeed,feedOpenKey) { feedPreferences.edit().putBoolean(feedOpenKey,showFeed).apply() }
+    var showFeed by remember(feedOpenKey, state.browserNavigationRevision) {
+        mutableStateOf(feedPreferences.getBoolean(feedOpenKey, false))
+    }
+    fun setFeedVisible(visible: Boolean) {
+        showFeed = visible
+        feedPreferences.edit().putBoolean(feedOpenKey, visible).apply()
+    }
     val feedClient = remember { com.doujinzip.android.network.HitomiClient() }
     if (showFeed) {
         CompositionLocalProvider(LocalWorkCardSize provides WorkCardSize.fromColumns(gridColumns)) {
@@ -282,8 +287,8 @@ fun BrowserScreen(
                 loadIds = { selected -> com.doujinzip.android.data.subscriptionFeedIds(selected, state.searchTagFilters, state.customBlockedTags, feedClient::subscriptionIds) },
                 loadGallery = feedClient::getGallery, onLoaded = onFeedGalleryLoaded,
                 probeIds = { selected -> feedClient.subscriptionFingerprint(selected.flatMap { it.queries }.map { com.doujinzip.android.model.applySearchTagFilters(it,state.searchTagFilters,state.customBlockedTags) }) },
-                onBack = { showFeed = false }, onOpen = onGalleryClick, onLongClick = onGalleryLongClick,
-                onFavorite = onToggleLibraryFavorite, onFacet = { showFeed = false; onSearchFacet(it) })
+                onBack = { setFeedVisible(false) }, onOpen = onGalleryClick, onLongClick = onGalleryLongClick,
+                onFavorite = onToggleLibraryFavorite, onFacet = { setFeedVisible(false); onSearchFacet(it) })
         }
         return
     }
@@ -342,7 +347,7 @@ fun BrowserScreen(
                 colors = activeFilterButtonColors(state.searchTagFilters.isNotEmpty() || state.customBlockedTags.isNotEmpty() || editing && expandedPanel == "tag-filters")) {
                 ActionIcon(ActionSymbol.FILTER); Spacer(Modifier.width(4.dp)); Text(strings[R.string.search_tag_filters])
             }
-            OutlinedButton(onClick = { showFeed = true }) {
+            OutlinedButton(onClick = { setFeedVisible(true) }) {
                 ActionIcon(ActionSymbol.NEWSPAPER); Spacer(Modifier.width(4.dp)); Text(strings[R.string.feed_title])
             }
         }
@@ -526,6 +531,7 @@ internal fun GalleryCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onSearchFacet: (String) -> Unit,
+    linkArtists: Boolean = false,
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     val context = LocalContext.current
@@ -537,6 +543,7 @@ internal fun GalleryCard(
     WorkCard(
         title = preferredLocalizedTitle(gallery.title),
         artist = gallery.artists.joinToString().ifBlank { strings[R.string.ui_no_artist_information] },
+        artistLinks = if (linkArtists) gallery.artists.map { name -> name to { onSearchFacet("artist:$name") } } else emptyList(),
         metadata = listOfNotNull(gallery.language, gallery.pageCount.takeIf { it > 0 }?.let { strings[R.string.ui_pages, it] }).joinToString(" · "),
         tags = gallery.tags.map { tag -> CardTag(tagDisplayInfo(tag.name, tag.type)) { onSearchFacet(tagSearchFacet(tag.name, tag.type)) } },
         footer = gallery.loadError ?: formatGalleryPublishedDate(gallery.publishedDate)?.let { strings[R.string.ui_uploaded, it] }.orEmpty(),

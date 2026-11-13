@@ -913,6 +913,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun searchFromFacet(facet: String) {
         val normalizedFacet = normalizeFilterFacet(facet)
+        getApplication<Application>().getSharedPreferences("subscription_feed", android.content.Context.MODE_PRIVATE)
+            .edit().putBoolean("open-${uiState.selectedProfileId.orEmpty()}", false).apply()
         openSearchTab(normalizedFacet, uiState.preferredLanguages)
     }
 

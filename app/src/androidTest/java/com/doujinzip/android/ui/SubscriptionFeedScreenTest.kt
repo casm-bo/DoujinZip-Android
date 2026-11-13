@@ -30,6 +30,17 @@ class SubscriptionFeedScreenTest {
         compose.activityRule.scenario.onActivity { it.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     }
     private fun gallery(id:Long)=GallerySummary(id,"Synthetic $id",artists=emptyList(),series=emptyList(),galleryType=null,thumbnailUrl=null,pageCount=1,language=null,tags=emptyList())
+    @Test fun artistLinkSearchesThatArtistWithoutOpeningTheGallery() {
+        var facet = ""
+        compose.setContent { DoujinZipTheme {
+            GalleryCard(gallery(42).copy(artists = listOf("Synthetic Artist")), read = false,
+                libraryBook = null, favorite = false, onToggleFavorite = {},
+                onClick = { error("Artist click opened the gallery") }, onLongClick = {},
+                onSearchFacet = { facet = it }, linkArtists = true)
+        } }
+        compose.onNodeWithText("Synthetic Artist", useUnmergedTree = true).performTouchInput { click() }
+        compose.runOnIdle { assertEquals("artist:Synthetic Artist", facet) }
+    }
     @Test fun narrowFeedWrapsControlsAtLargeFontSize() {
         compose.setContent { DoujinZipTheme {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 1.6f)) {
