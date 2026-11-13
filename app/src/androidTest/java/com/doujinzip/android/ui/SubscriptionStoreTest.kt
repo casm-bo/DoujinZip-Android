@@ -8,6 +8,27 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SubscriptionStoreTest {
+    @Test fun dismissedNoticeStaysRemovedWhenAnotherSubscriptionMatchesIt() {
+        SubscriptionStore(context, null).use { store ->
+            val first = SearchSubscription(name = "First", query = "tag:first", enabled = true)
+            val second = SearchSubscription(name = "Second", query = "tag:second", enabled = true)
+            val gallery = GallerySummary(42, "Synthetic release", emptyList(), emptyList(), null, emptyList(), null, 1, null)
+            for (scope in listOf("", "other")) {
+                store.save(scope, first)
+                assertTrue(store.checked(scope, first, listOf(1), emptyList(), 1))
+                assertTrue(store.checked(scope, first, listOf(42), listOf(gallery), 2))
+            }
+            store.dismissNotices("", setOf(42))
+            store.adoptLocal("pc")
+            store.save("pc", second)
+            assertTrue(store.checked("pc", second, listOf(1), emptyList(), 1))
+            assertTrue(store.checked("pc", second, listOf(42), listOf(gallery), 2))
+            assertTrue(store.notices("pc").isEmpty())
+            assertNull(store.gallery("pc", 42))
+            assertEquals(42L, store.notices("other").single().galleryId)
+            assertEquals(2, store.records("pc").size)
+        }
+    }
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
     private fun gallery(id: Long) = GallerySummary(id,"Example $id",listOf("Example"),emptyList(),null,emptyList(),null,12,"korean")
     @Test fun favoritesMigrateOnceAndRemainInactiveWithNamesAndQueriesUnchanged() {

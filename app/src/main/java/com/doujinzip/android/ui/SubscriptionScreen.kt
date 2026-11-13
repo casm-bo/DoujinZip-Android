@@ -26,6 +26,7 @@ import android.content.Intent
 import android.provider.Settings
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 import java.text.DateFormat
@@ -42,6 +43,7 @@ internal fun SubscriptionScreen(state: MainUiState, onClose: () -> Unit, onTab: 
     onRefresh: () -> Unit, onRead: (Long?) -> Unit, onEdit: (SearchSubscription?) -> Unit,
     onSave: (SearchSubscription) -> Unit, onResolve: (String,Boolean) -> Unit, onSearch: (SearchSubscription) -> Unit,
     onQueryChange: (String) -> Unit = {}, onLoadLanguages: () -> Unit = {},
+    onDismissNotices: (Set<Long>) -> Unit = {},
     ) {
     val strings=androidx.compose.ui.platform.LocalResources.current
     val context=LocalContext.current
@@ -65,9 +67,16 @@ internal fun SubscriptionScreen(state: MainUiState, onClose: () -> Unit, onTab: 
         sortSavedSubscriptions(filtered, savedSort)
     }
     var deleting by remember { mutableStateOf<SearchSubscription?>(null) }
+    var selection by remember(state.selectedProfileId, state.subscriptionTab) { mutableStateOf(emptySet<Long>()) }
+    val noticeIds = remember(state.subscriptionNotices) { state.subscriptionNotices.map { it.galleryId }.toSet() }
+    val selectedNotices = selection.intersect(noticeIds)
+    BackHandler(enabled = selectedNotices.isNotEmpty()) { selection = emptySet() }
+    fun toggleNotice(id: Long) {
+        selection = if (id in selectedNotices) selectedNotices - id else selectedNotices + id
+    }
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal=16.dp)) {
         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-            IconButton(onClose) { ActionIcon(ActionSymbol.BACK) }
+            IconButton({ if (selectedNotices.isEmpty()) onClose() else selection = emptySet() }) { ActionIcon(ActionSymbol.BACK) }
             Text(strings[R.string.sub_title],Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
         }
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -78,9 +87,20 @@ internal fun SubscriptionScreen(state: MainUiState, onClose: () -> Unit, onTab: 
         state.subscriptionSyncError?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
         state.subscriptionError?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
         if(state.subscriptionTab==0) {
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+            FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp),verticalArrangement=Arrangement.Center) {
                 TextButton({onRead(null)},enabled=state.subscriptionNotices.any { !it.read }) { Text(strings[R.string.sub_all_read]) }
-                OutlinedButton(onRefresh,enabled=!state.subscriptionsBusy,contentPadding=PaddingValues(horizontal=10.dp,vertical=2.dp),modifier=Modifier.heightIn(min=32.dp)) {ActionIcon(ActionSymbol.REFRESH);Spacer(Modifier.width(8.dp));Text(strings[R.string.sub_check_now])}
+                val allSelected = noticeIds.isNotEmpty() && selectedNotices == noticeIds
+                TextButton({ selection = if (allSelected) emptySet() else noticeIds }, enabled = noticeIds.isNotEmpty()) {
+                    Text(strings[if (allSelected) R.string.ui_deselect_all else R.string.ui_select_all])
+                }
+                if (selectedNotices.isNotEmpty()) {
+                    TextButton({
+                        onDismissNotices(selectedNotices)
+                        selection = emptySet()
+                    }) { Text(strings[R.string.ui_delete], color = MaterialTheme.colorScheme.error) }
+                } else {
+                    OutlinedButton(onRefresh,enabled=!state.subscriptionsBusy,contentPadding=PaddingValues(horizontal=10.dp,vertical=2.dp),modifier=Modifier.heightIn(min=32.dp)) {ActionIcon(ActionSymbol.REFRESH);Spacer(Modifier.width(8.dp));Text(strings[R.string.sub_check_now])}
+                }
             }
         }
         if(state.subscriptionTab==0) {
@@ -88,7 +108,10 @@ internal fun SubscriptionScreen(state: MainUiState, onClose: () -> Unit, onTab: 
                 if(state.subscriptionNotices.isEmpty()) item { Text(strings[R.string.sub_empty]) }
                 items(state.subscriptionNotices,key={it.galleryId}) { notice ->
                     WorkCard(title=notice.title,artist=notice.artist,metadata=notice.subscriptions.joinToString(", "),tags=emptyList(),
-                        footer=strings[if(notice.read) R.string.sub_read else R.string.sub_unread],grid=false,onClick={onRead(notice.galleryId)},
+                        footer=strings[if(notice.read) R.string.sub_read else R.string.sub_unread],grid=false,
+                        onClick={ if (selectedNotices.isEmpty()) onRead(notice.galleryId) else toggleNotice(notice.galleryId) },
+                        onLongClick={ toggleNotice(notice.galleryId) },
+                        selected=notice.galleryId in selectedNotices,
                         border=if(!notice.read) androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.primary) else null,cover={ AsyncImage(notice.thumbnail,contentDescription=null,modifier=Modifier.fillMaxSize(),contentScale=ContentScale.Crop) })
                 }
             }

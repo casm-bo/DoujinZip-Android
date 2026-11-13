@@ -36,6 +36,28 @@ class SubscriptionUiTest {
         compose.onNodeWithText(text(R.string.ui_save)).performClick()
         compose.runOnIdle { assertEquals("title words",saved!!.query);assertFalse(saved!!.enabled) }
     }
+    @Test fun noticesCanBeSelectedIndividuallyOrAllAtOnceAndDeleted() {
+        val first = SubscriptionNotice(42, "Synthetic first", "Example", null, false, emptyList())
+        val second = first.copy(galleryId = 43, title = "Synthetic second", read = true)
+        val removed = mutableListOf<Set<Long>>()
+        compose.setContent { MaterialTheme {
+            var notices by remember { mutableStateOf(listOf(first, second)) }
+            SubscriptionScreen(MainUiState(subscriptionNotices = notices), {}, {}, {},
+                { error("Selection must not open or mark a notice as read") }, {}, {}, { _, _ -> }, {},
+                onDismissNotices = { ids -> removed.add(ids); notices = notices.filterNot { it.galleryId in ids } })
+        } }
+        compose.onNodeWithText(first.title).performTouchInput { longClick() }
+        compose.onNodeWithText(first.title).assertIsSelected()
+        compose.onNodeWithText(second.title).performClick().assertIsSelected()
+        compose.onNodeWithText(text(R.string.ui_deselect_all)).performClick()
+        compose.onNodeWithText(text(R.string.ui_delete)).assertDoesNotExist()
+        compose.onNodeWithText(text(R.string.ui_select_all)).performClick()
+        compose.onNodeWithText(first.title).performClick()
+        compose.onNodeWithText(text(R.string.ui_delete)).performClick()
+        compose.onNodeWithText(first.title).assertExists()
+        compose.onNodeWithText(second.title).assertDoesNotExist()
+        compose.runOnIdle { assertEquals(listOf(setOf(43L)), removed) }
+    }
     @Test fun privacyStartsEnabledAndCanBeDisabledAndIntervalCanChange() {
         var options=SubscriptionOptions()
         compose.setContent { var state by remember { mutableStateOf(options) }; MaterialTheme { SubscriptionSettings(state,{state=it;options=it},{}) } }

@@ -66,6 +66,8 @@ class SubscriptionStore internal constructor(context: Context, databaseName: Str
     }
     @Synchronized fun adoptLocal(scope: String) = transaction {
         if (scope.isEmpty()) return@transaction
+        writableDatabase.execSQL("INSERT OR IGNORE INTO state SELECT ? || substr(key, length('dismissed/')+1),value FROM state WHERE key GLOB 'dismissed//*'", arrayOf("dismissed/$scope"))
+        writableDatabase.execSQL("DELETE FROM state WHERE key GLOB 'dismissed//*'")
         records("").forEach { record ->
             val destination = records(scope).find { it.value.conditionKey == record.value.conditionKey }
             if (destination == null) {
@@ -84,7 +86,7 @@ class SubscriptionStore internal constructor(context: Context, databaseName: Str
         if (current.value != expected || !current.value.enabled || current.value.deleted) return@transaction false
         val newIds = subscriptionNewIds(ids, current.baseline).toSet()
         require(galleries.map { it.id }.toSet().containsAll(newIds))
-        galleries.filter { it.id in newIds }.forEach { gallery ->
+        galleries.filter { it.id in newIds && state("dismissed/$scope/${it.id}") == null }.forEach { gallery ->
             val values = ContentValues().apply { put("scope", scope); put("gallery", gallery.id); put("title", gallery.title); put("artist", gallery.artists.joinToString(", ")); put("thumbnail", gallery.thumbnailUrl);put("details",gallery.json().toString()) }
             writableDatabase.insertWithOnConflict("notices", null, values, SQLiteDatabase.CONFLICT_IGNORE)
             writableDatabase.execSQL("INSERT OR IGNORE INTO matches VALUES(?,?,?)", arrayOf<Any>(scope, gallery.id, expected.id))
@@ -109,6 +111,15 @@ class SubscriptionStore internal constructor(context: Context, databaseName: Str
         require(id > 0)
         writableDatabase.execSQL("INSERT OR IGNORE INTO reads VALUES(?,?,?)", arrayOf<Any>(scope,id,if(dirty) 1 else 0))
         changes.value++
+    }
+    @Synchronized fun dismissNotices(scope: String, ids: Set<Long>) = transaction {
+        for (id in ids) {
+            val args = arrayOf(scope, id.toString())
+            if (writableDatabase.delete("notices", "scope=? AND gallery=?", args) > 0) {
+                writableDatabase.delete("matches", "scope=? AND gallery=?", args)
+                setState("dismissed/$scope/$id", "1")
+            }
+        }
     }
     @Synchronized fun gallery(scope:String,id:Long):GallerySummary? = readableDatabase.rawQuery("SELECT details,title,artist,thumbnail FROM notices WHERE scope=? AND gallery=?",arrayOf(scope,id.toString())).use { c ->
         if(!c.moveToFirst()) null else if(!c.isNull(0)) JSONObject(c.getString(0)).gallery()

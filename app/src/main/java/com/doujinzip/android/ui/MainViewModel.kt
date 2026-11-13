@@ -545,6 +545,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun dismissSubscriptionNotices(ids: Set<Long>) {
+        val scope = uiState.selectedProfileId.orEmpty()
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    subscriptionStore.dismissNotices(scope, ids)
+                    com.doujinzip.android.data.SubscriptionNotifications.refresh(getApplication())
+                }
+                reloadSubscriptions()
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                if (scope == uiState.selectedProfileId.orEmpty()) {
+                    uiState = uiState.copy(subscriptionError = strings[R.string.msg_could_not_delete_items, ids.size])
+                }
+            }
+        }
+    }
+
     fun openSubscriptionNotification(scope:String,galleryId:Long) {
         if(galleryId==0L) { openSubscriptions();return }
         if(galleryId<0 || (scope.isNotEmpty() && uiState.profiles.none { it.id==scope })) return
