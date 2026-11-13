@@ -655,4 +655,7 @@
     <string name="ui_random_order">ランダム順</string>
     <string name="ui_daily_popularity">日間人気順</string>
     <string name="ui_weekly_popularity">週間人気順</string>
+    <string name="backup_auto_sync">アプリ使用中にPCへ自動バックアップ</string>
+    <string name="backup_pc_restore">PCのバックアップを復元しますか？</string>
+    <string name="backup_keep_local">端末のデータを保持</string>
 </resources>

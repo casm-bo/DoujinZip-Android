@@ -655,4 +655,7 @@
     <string name="ui_random_order">랜덤 나열</string>
     <string name="ui_daily_popularity">일간 인기순</string>
     <string name="ui_weekly_popularity">주간 인기순</string>
+    <string name="backup_auto_sync">앱 사용 중 PC에 자동 백업</string>
+    <string name="backup_pc_restore">PC 백업을 복원할까요?</string>
+    <string name="backup_keep_local">기기 데이터 유지</string>
 </resources>

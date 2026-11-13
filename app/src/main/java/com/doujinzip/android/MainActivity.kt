@@ -19,6 +19,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.CompositionLocalProvider
 import com.doujinzip.android.ui.LocalGalleryBorders
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.Lifecycle
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import com.doujinzip.android.ui.DoujinZipApp
 import com.doujinzip.android.ui.MainViewModel
 import com.doujinzip.android.ui.AppLockViewModel
@@ -112,6 +116,18 @@ class MainActivity : AppCompatActivity() {
         appLock.activeBiometricRequest?.let(::attachBiometric)
         setContent {
             val viewModel: MainViewModel = viewModel()
+            val backupProfile = viewModel.uiState.profiles.firstOrNull { it.id == viewModel.uiState.selectedProfileId }
+            LaunchedEffect(backupProfile, appLock.locked, viewModel.autoBackupEnabled, viewModel.uiState.isStarting) {
+                if (backupProfile == null || appLock.locked || !viewModel.autoBackupEnabled || viewModel.uiState.isStarting) return@LaunchedEffect
+                lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                    while (true) {
+                        try { viewModel.checkDesktopBackup(backupProfile) }
+                        catch (error: CancellationException) { throw error }
+                        catch (_: Exception) { /* Retry while the app is in use. */ }
+                        delay(60_000)
+                    }
+                }
+            }
             LaunchedEffect(appLock.locked,viewModel.uiState.isStarting,subscriptionTarget) {
                 if(!appLock.locked && !viewModel.uiState.isStarting) subscriptionTarget?.let { target ->
                     subscriptionTarget=null
@@ -140,7 +156,10 @@ class MainActivity : AppCompatActivity() {
                 CompositionLocalProvider(LocalGalleryBorders provides borders, LocalAppLock provides appLock) {
                     val holder = rememberSaveableStateHolder()
                     if (appLock.locked) AppLockScreen(appLock, ::requestBiometric) { moveTaskToBack(true) }
-                    else holder.SaveableStateProvider("app") { DoujinZipApp(viewModel) }
+                    else holder.SaveableStateProvider("app") {
+                        DoujinZipApp(viewModel)
+                        if (backupProfile != null) com.doujinzip.android.ui.DesktopBackupRestorePrompt(viewModel, backupProfile)
+                    }
                 }
             }
         }

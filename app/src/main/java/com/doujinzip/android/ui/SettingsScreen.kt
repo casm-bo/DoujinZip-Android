@@ -109,6 +109,8 @@ fun SettingsScreen(
     onManageSubscriptions: () -> Unit = {},
     onSyncNow: () -> Unit = {},
     onPrepareBackup: suspend (String) -> java.io.File = { error("Backup unavailable") },
+    autoBackupEnabled: Boolean = true,
+    onAutoBackupChange: (Boolean) -> Unit = {},
     initialSectionName: String = "HOME",
     onSectionChanged: (String) -> Unit = {},
     onScanServers: () -> Unit = {},
@@ -142,7 +144,9 @@ fun SettingsScreen(
 
     when (section) {
         SettingsSection.BACKUP -> SettingsDetailLayout(strings[R.string.backup_title], contentPadding, { openSection(SettingsSection.HOME) }) {
-            SectionCard(strings[R.string.backup_title]) { BackupSettings(onPrepareBackup) { openSection(SettingsSection.CONNECTION) } }
+            SectionCard(strings[R.string.backup_title]) {
+                BackupSettings(onPrepareBackup, { openSection(SettingsSection.CONNECTION) }, autoBackupEnabled, onAutoBackupChange)
+            }
         }
         SettingsSection.SUBSCRIPTIONS -> SettingsDetailLayout(strings[R.string.sub_settings],contentPadding,{openSection(SettingsSection.HOME)}) {
             SectionCard(strings[R.string.sub_settings]) { SubscriptionSettings(state.subscriptionOptions,onSubscriptionOptionsChange,onManageSubscriptions) }

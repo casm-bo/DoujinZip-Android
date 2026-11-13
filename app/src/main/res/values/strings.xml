@@ -655,4 +655,7 @@
     <string name="ui_random_order">Random order</string>
     <string name="ui_daily_popularity">Daily popularity</string>
     <string name="ui_weekly_popularity">Weekly popularity</string>
+    <string name="backup_auto_sync">Automatically back up to PC while using the app</string>
+    <string name="backup_pc_restore">Restore PC backup?</string>
+    <string name="backup_keep_local">Keep device data</string>
 </resources>

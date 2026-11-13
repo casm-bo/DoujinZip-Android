@@ -967,6 +967,8 @@ private fun MainTabContent(
                 onManageSubscriptions = {viewModel.openSubscriptions(1)},
                 onSyncNow = viewModel::syncLibraryNow,
                 onPrepareBackup = viewModel::prepareLocalBackup,
+                autoBackupEnabled = viewModel.autoBackupEnabled,
+                onAutoBackupChange = viewModel::setAutoBackupEnabled,
                 initialSectionName = viewModel.settingsSectionName,
                 onSectionChanged = { viewModel.settingsSectionName = it },
             )

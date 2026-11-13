@@ -352,6 +352,76 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         appStyle = appearancePreferenceStore.loadStyle()))
         private set
     private var navigationPage: BrowserPage = BrowserPage.Search()
+    internal val desktopBackup = com.doujinzip.android.data.DesktopBackupSync(application)
+    internal var autoBackupEnabled by mutableStateOf(desktopBackup.enabled)
+        private set
+    internal var backupToRestore by mutableStateOf<com.doujinzip.android.data.DesktopBackup?>(null)
+        private set
+    private var lastBackupProfile: DesktopProfile? = null
+
+    internal fun setAutoBackupEnabled(enabled: Boolean) {
+        desktopBackup.enabled = enabled
+        autoBackupEnabled = enabled
+        selectedProfile()?.let(desktopBackup::checkAgain)
+        if (!enabled) backupToRestore = null
+    }
+
+    internal suspend fun checkDesktopBackup(profile: DesktopProfile) {
+        if (profile != selectedProfile() || !autoBackupEnabled || uiState.isStarting) return
+        if (profile != lastBackupProfile) {
+            lastBackupProfile = profile
+            backupToRestore = null
+        }
+        if (backupToRestore != null ||
+            System.currentTimeMillis() - desktopBackup.lastCheck(profile) in 0 until 6 * 60 * 60_000L) return
+        val remote = desktopBackup.inspect(profile)
+        if (remote != null && desktopBackup.accepted(profile) != remote.version) {
+            backupToRestore = remote
+            return
+        }
+        val synced = withContext(Dispatchers.IO) {
+            client.getLibraryBooks(profile).filter { it.syncStateVersion > 0 && it.hasSyncedSeriesState }.mapTo(mutableSetOf()) { it.id }
+        }
+        synced.removeAll(libraryPreferenceStore.loadPendingBookStateSyncIds())
+        synced.removeAll(libraryPreferenceStore.loadPendingSeriesSyncIds())
+        val locale = androidx.appcompat.app.AppCompatDelegate.getApplicationLocales().toLanguageTags()
+        presentationSyncMutex.withLock {
+            com.doujinzip.android.data.SubscriptionRefresh.snapshot {
+                withContext(Dispatchers.IO) {
+                    val store = com.doujinzip.android.data.LocalBackupStore(getApplication())
+                    val archive = store.capture(synced, profile.id, locale)
+                    val digest = com.doujinzip.android.data.backupContentDigest(archive)
+                    if (remote == null || digest != desktopBackup.digest(profile)) {
+                        val file = java.io.File.createTempFile("auto-backup-", ".zip", getApplication<Application>().cacheDir)
+                        try {
+                            file.outputStream().use { com.doujinzip.android.data.BackupFormat.write(archive, it) }
+                            file.inputStream().use { store.validate(com.doujinzip.android.data.BackupFormat.read(it)) }
+                            val version = desktopBackup.upload(profile, remote, file)
+                            desktopBackup.accept(profile, version, digest)
+                        } finally { file.delete() }
+                    }
+                }
+            }
+        }
+        desktopBackup.markChecked(profile)
+    }
+
+    internal fun hasDesktopBackupPrompt(profile: DesktopProfile) = profile == lastBackupProfile
+
+    internal suspend fun decideDesktopBackup(profile: DesktopProfile, restore: Boolean): Boolean {
+        val backup = backupToRestore ?: return false
+        if (profile != selectedProfile() || !hasDesktopBackupPrompt(profile)) return false
+        if (restore) {
+            val archive = desktopBackup.download(profile, backup)
+            if (profile != selectedProfile()) return false
+            withContext(Dispatchers.IO) {
+                com.doujinzip.android.data.LocalBackupStore(getApplication()).stage(archive, desktopBackup.decisionKey(profile), backup.version)
+            }
+        } else withContext(Dispatchers.IO) { desktopBackup.accept(profile, backup.version) }
+        desktopBackup.checkAgain(profile)
+        backupToRestore = null
+        return true
+    }
     private data class TabLocation(val gallery: Boolean, val tabId: String, val pageKey: String)
     private data class TabReturn(val origin: TabLocation, val destination: TabLocation)
     private val tabReturns = ArrayDeque<TabReturn>()

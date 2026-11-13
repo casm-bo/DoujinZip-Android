@@ -15,6 +15,26 @@ import java.io.File
 import java.lang.reflect.Proxy
 
 class LocalBackupTest {
+    @Test fun desktopBackupDecisionIsSavedOnlyAfterRestoreAndDigestIgnoresCaptureTime() {
+        val base = InstrumentationRegistry.getInstrumentation().targetContext
+        IsolatedContext(base).use { context ->
+            val sync = DesktopBackupSync(context)
+            val profile = DesktopProfile("fixture", "Fixture", "http://127.0.0.1:1", "fixture")
+            val store = LocalBackupStore(context)
+            val archive = store.capture(emptySet(), null, "")
+            val retimed = archive.copy(data = org.json.JSONObject(archive.data.toString()).put("createdAt", 42))
+            assertEquals(backupContentDigest(archive), backupContentDigest(retimed))
+            assertNotEquals(backupContentDigest(archive), backupContentDigest(retimed.copy(
+                data = org.json.JSONObject(retimed.data.toString()).put("locale", "ko"))))
+            assertTrue(sync.enabled)
+            sync.enabled = false
+            assertFalse(DesktopBackupSync(context).enabled)
+            store.stage(archive, sync.decisionKey(profile), "fixture-version")
+            assertNull(sync.accepted(profile))
+            store.applyPending()
+            assertEquals("fixture-version", sync.accepted(profile))
+        }
+    }
     private class IsolatedContext(base: Context) : ContextWrapper(base), AutoCloseable {
         private val prefix = "backup-test-${System.nanoTime()}-"
         private val directory = File(base.cacheDir, prefix).also { it.mkdirs() }

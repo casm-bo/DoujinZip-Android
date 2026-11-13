@@ -19,7 +19,9 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
-internal fun BackupSettings(onPrepare: suspend (String) -> File, onOpenConnection: () -> Unit) {
+internal fun BackupSettings(onPrepare: suspend (String) -> File, onOpenConnection: () -> Unit,
+    autoBackupEnabled: Boolean = true, onAutoBackupChange: (Boolean) -> Unit = {},
+) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     val context = LocalContext.current
     val lock = LocalAppLock.current
@@ -110,6 +112,10 @@ internal fun BackupSettings(onPrepare: suspend (String) -> File, onOpenConnectio
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(strings[R.string.backup_scope])
         Text(strings[R.string.backup_plaintext], color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(strings[R.string.backup_auto_sync], Modifier.weight(1f))
+            Switch(autoBackupEnabled, onAutoBackupChange)
+        }
         Button(enabled = !busy && action == null && readyPath == null && pendingSave == null, onClick = { if (lock.enabled) authorize = "export" else action = "export" }) { Text(strings[R.string.backup_export]) }
         OutlinedButton(enabled = !busy && action == null && readyPath == null && pendingSave == null, onClick = { if (lock.enabled) authorize = "restore" else action = "restore" }) { Text(strings[R.string.backup_import]) }
         TextButton(onClick = onOpenConnection, enabled = !busy) { Text(strings[R.string.ui_connection_settings]) }
@@ -145,4 +151,40 @@ internal fun BackupSettings(onPrepare: suspend (String) -> File, onOpenConnectio
         dismissButton = { TextButton(onClick = { failureDialog = false }) { Text(strings[R.string.ui_confirm]) } })
     if (busy) AlertDialog(onDismissRequest = {}, title = { Text(strings[R.string.backup_working]) },
         text = { Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { CircularProgressIndicator(Modifier.size(24.dp)); Text(strings[R.string.backup_sync_notice]) } }, confirmButton = {})
+}
+
+@Composable
+internal fun DesktopBackupRestorePrompt(viewModel: MainViewModel, profile: com.doujinzip.android.model.DesktopProfile) {
+    val backup = viewModel.backupToRestore?.takeIf { viewModel.hasDesktopBackupPrompt(profile) } ?: return
+    val strings = androidx.compose.ui.platform.LocalResources.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var busy by remember(backup) { mutableStateOf(false) }
+    var failed by remember(backup) { mutableStateOf(false) }
+    fun decide(restore: Boolean) {
+        busy = true
+        scope.launch {
+            try {
+                if (viewModel.decideDesktopBackup(profile, restore) && restore) {
+                    var owner = context
+                    while (owner is android.content.ContextWrapper && owner !is Activity) owner = owner.baseContext
+                    (owner as? Activity)?.finishAffinity()
+                    android.os.Process.killProcess(android.os.Process.myPid())
+                }
+            } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+            catch (_: Exception) { failed = true }
+            finally { busy = false }
+        }
+    }
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text(strings[R.string.backup_pc_restore]) },
+        text = {
+            val date = java.text.DateFormat.getDateTimeInstance().format(java.util.Date(backup.modifiedAt))
+            Text("$date\n${strings[R.string.backup_restore_notice]}\n${strings[R.string.backup_restart_notice]}" +
+                if (failed) "\n${strings[R.string.backup_failed]}" else "")
+        },
+        confirmButton = { TextButton(enabled = !busy, onClick = { decide(true) }) { Text(strings[R.string.backup_import]) } },
+        dismissButton = { TextButton(enabled = !busy, onClick = { decide(false) }) { Text(strings[R.string.backup_keep_local]) } },
+    )
 }

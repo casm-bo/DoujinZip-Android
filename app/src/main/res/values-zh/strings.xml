@@ -655,4 +655,7 @@
     <string name="ui_random_order">随机排序</string>
     <string name="ui_daily_popularity">日人气排行</string>
     <string name="ui_weekly_popularity">周人气排行</string>
+    <string name="backup_auto_sync">使用应用时自动备份到电脑</string>
+    <string name="backup_pc_restore">恢复电脑备份？</string>
+    <string name="backup_keep_local">保留设备数据</string>
 </resources>

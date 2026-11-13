@@ -163,12 +163,16 @@ internal class LocalBackupStore(private val context: Context) {
         archive.covers.forEach { (hash, bytes) -> covers.validate(hash, bytes) }
     }
 
-    fun stage(archive: BackupArchive) {
+    fun stage(archive: BackupArchive, decisionKey: String? = null, version: String? = null) {
         validate(archive)
+        val data = JSONObject(archive.data.toString()).apply {
+            remove("desktopBackupDecision")
+            if (decisionKey != null && version != null) put("desktopBackupDecision", JSONObject().put("key", decisionKey).put("version", version))
+        }
         val output = staged.startWrite()
         try {
             // AtomicFile owns the descriptor; ZipOutputStream must not close it before finishWrite.
-            BackupFormat.write(archive, object : java.io.FilterOutputStream(output) { override fun close() { flush() } })
+            BackupFormat.write(archive.copy(data = data), object : java.io.FilterOutputStream(output) { override fun close() { flush() } })
             staged.finishWrite(output)
         } catch (error: Throwable) { staged.failWrite(output); throw error }
     }
@@ -191,8 +195,14 @@ internal class LocalBackupStore(private val context: Context) {
             apply(archive)
             // Removing the journal is the commit point. Reapplying a remaining stage is idempotent.
             rollback.delete(); staged.delete()
-            check(runtime().edit().putString("result", "success").putString("locale", archive.data.getString("locale"))
-                .putBoolean("serverDataExcluded", archive.data.getBoolean("serverDataExcluded")).commit())
+            val result = runtime().edit().putString("result", "success").putString("locale", archive.data.getString("locale"))
+                .putBoolean("serverDataExcluded", archive.data.getBoolean("serverDataExcluded"))
+            archive.data.optJSONObject("desktopBackupDecision")?.let {
+                val key = it.getString("key")
+                result.putString(key, it.getString("version")).remove("$key/digest")
+                    .putLong("$key/checked", System.currentTimeMillis())
+            }
+            check(result.commit())
         } catch (error: Exception) {
             if (rollback.baseFile.exists()) restoreJournal(JSONObject(rollback.openRead().bufferedReader().use { it.readText() }))
             rollback.delete(); staged.delete()
