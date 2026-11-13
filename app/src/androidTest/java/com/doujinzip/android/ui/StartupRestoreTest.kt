@@ -1,6 +1,8 @@
 package com.doujinzip.android.ui
 
 import android.app.Application
+import android.content.ContextWrapper
+import android.content.SharedPreferences
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.test.platform.app.InstrumentationRegistry
@@ -17,6 +19,32 @@ import org.junit.Rule
 
 class StartupRestoreTest {
     @get:Rule val compose = createComposeRule()
+    @Test fun interruptedSessionOpensSearchOnceAndKeepsTheReaderTab() {
+        val app = InstrumentationRegistry.getInstrumentation().targetContext
+        val fixture = app.getSharedPreferences("startup-recovery-fixture", 0)
+        val browser = BrowserPreferenceStore(object : ContextWrapper(app) {
+            override fun getSharedPreferences(name: String, mode: Int): SharedPreferences = fixture
+        })
+        try {
+            fixture.edit().clear().commit()
+            val reader = BrowserPage.OnlineReader(42, "Synthetic reader", 7, position = ReaderPosition(7, 15))
+            val previous = BrowserWorkspace.initial().openTab(reader)
+            browser.saveBrowserWorkspace(previous)
+            browser.saveActiveGalleryWorkspace(true)
+            browser.saveMainDestination("library")
+
+            assertTrue(browser.recoverSearchAfterExit(100))
+            val recovered = browser.loadBrowserWorkspace()
+            assertTrue(recovered.activeTab.currentPage is BrowserPage.Search)
+            assertEquals(reader, recovered.tabs.first { it.id == previous.activeTabId }.currentPage)
+            assertFalse(browser.loadActiveGalleryWorkspace())
+            assertEquals("browser", browser.loadMainDestination())
+            assertFalse(browser.recoverSearchAfterExit(100))
+            assertEquals(recovered, browser.loadBrowserWorkspace())
+        } finally {
+            fixture.edit().clear().commit()
+        }
+    }
     @Test fun restoresLargeSavedStateBeforeExposingTheWorkspace() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext

@@ -90,7 +90,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+        val restoredState = if (com.doujinzip.android.data.CrashDiagnostics.recoverNavigation(this)) null else savedInstanceState
+        super.onCreate(restoredState)
         androidx.core.content.ContextCompat.registerReceiver(this, screenOffReceiver,
             android.content.IntentFilter(Intent.ACTION_SCREEN_OFF), androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
         val backupRuntime = getSharedPreferences("backup_runtime", MODE_PRIVATE)
@@ -106,7 +107,7 @@ class MainActivity : AppCompatActivity() {
                 else getString(R.string.backup_restore_failed)
             android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
         }
-        subscriptionTarget=savedInstanceState?.takeIf { it.containsKey("subscription_gallery") }?.let { it.getString("subscription_scope").orEmpty() to it.getLong("subscription_gallery") }
+        subscriptionTarget=restoredState?.takeIf { it.containsKey("subscription_gallery") }?.let { it.getString("subscription_scope").orEmpty() to it.getLong("subscription_gallery") }
         readSubscriptionTarget(intent)
         appLock.activeBiometricRequest?.let(::attachBiometric)
         setContent {

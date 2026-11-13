@@ -10,6 +10,7 @@ import com.doujinzip.android.model.BrowserWorkspace
 import com.doujinzip.android.model.NewTabReturn
 import com.doujinzip.android.model.boundedTabHistory
 import com.doujinzip.android.model.normalizeGroups
+import com.doujinzip.android.model.openTab
 import com.doujinzip.android.model.SearchFavorite
 import com.doujinzip.android.model.SearchQueryEntry
 import com.doujinzip.android.model.StorageLocation
@@ -149,6 +150,22 @@ class BrowserPreferenceStore(context: Context) {
 
     fun saveBrowserWorkspace(workspace: BrowserWorkspace) {
         preferences.edit().putString(KEY_SEARCH_WORKSPACE, browserWorkspaceToJson(workspace)).apply()
+    }
+
+    internal fun recoverSearchAfterExit(interruptedAt: Long): Boolean {
+        val recoveryKey = "last_navigation_recovery"
+        if (interruptedAt <= preferences.getLong(recoveryKey, 0L)) return false
+        val workspace = loadBrowserWorkspace()
+        val page = workspace.activeTab.currentPage
+        val searchWorkspace = if (page is BrowserPage.Search && page.query.isBlank() &&
+            page.submittedQuery.isBlank() && page.currentPage == 0) workspace
+        else workspace.openTab(BrowserPage.Search(preferredLanguages = loadPreferredLanguages()))
+        return preferences.edit()
+            .putString(KEY_SEARCH_WORKSPACE, browserWorkspaceToJson(searchWorkspace))
+            .putBoolean("active_gallery_workspace", false)
+            .putString("main_destination", "browser")
+            .putLong(recoveryKey, interruptedAt)
+            .commit()
     }
 
     fun loadActiveGalleryWorkspace(): Boolean = preferences.getBoolean("active_gallery_workspace", false)
