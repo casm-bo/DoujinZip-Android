@@ -153,15 +153,13 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
                 if (action == SnackbarResult.ActionPerformed &&
                     (if (result.galleryWorkspace) viewModel.uiState.galleryWorkspace else viewModel.uiState.browserWorkspace).tabs.any { it.id == result.tabId }) {
                     viewModel.tabPreviews.captureNow()
-                    if (result.galleryWorkspace) viewModel.selectGalleryTab(requireNotNull(result.tabId))
-                    else viewModel.selectBrowserTab(requireNotNull(result.tabId))
+                    viewModel.openBackgroundTab(requireNotNull(result.tabId), result.galleryWorkspace)
                 }
             }
         }
     }
     val lifecycleOwner = LocalLifecycleOwner.current
     var lastMainDestination by rememberSaveable { mutableStateOf(viewModel.initialMainDestination()) }
-    var searchOpenedFromGallery by rememberSaveable { mutableStateOf(false) }
     var lastShownNewTabNotice by rememberSaveable { mutableStateOf(0) }
     if(viewModel.uiState.showSubscriptions) androidx.compose.ui.window.Dialog(onDismissRequest=viewModel::closeSubscriptions,
         properties=androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth=false,securePolicy=androidx.compose.ui.window.SecureFlagPolicy.Inherit)) {
@@ -221,23 +219,14 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
             (appliedNavigationRevision == browserNavigationRevision || (browserNavigationRevision == 0L && lastMainDestination !in setOf("browser", "library")))
         appliedNavigationRevision = browserNavigationRevision
         if (restoringMain && (page is BrowserPage.Search || page is BrowserPage.LibraryHome)) return@LaunchedEffect
-        if (page is BrowserPage.LibraryHome || page is BrowserPage.LibrarySeries || page is BrowserPage.LibraryBook || page is BrowserPage.LibraryReader) searchOpenedFromGallery = false
         when (page) {
             is BrowserPage.LibraryHome -> {
                 lastMainDestination = MainDestination.Library.route
                 navController.popBackStack("main", inclusive = false)
             }
             is BrowserPage.Search -> {
-                if (searchOpenedFromGallery) {
-                    when {
-                        navController.currentDestination?.route == SEARCH_FROM_GALLERY_ROUTE -> Unit
-                        navController.popBackStack(SEARCH_FROM_GALLERY_ROUTE, inclusive = false) -> Unit
-                        else -> navController.navigate(SEARCH_FROM_GALLERY_ROUTE) { launchSingleTop = true }
-                    }
-                } else {
-                    lastMainDestination = MainDestination.Browser.route
-                    navController.popBackStack("main", inclusive = false)
-                }
+                lastMainDestination = MainDestination.Browser.route
+                navController.popBackStack("main", inclusive = false)
             }
             is BrowserPage.OnlineGallery -> navController.navigate("gallery/${page.galleryId}") {
                 popUpTo("main")
@@ -276,7 +265,6 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
     val currentEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentEntry?.destination?.route
     val previewIsGallery = when {
-        currentRoute == SEARCH_FROM_GALLERY_ROUTE -> false
         currentRoute?.startsWith("library-") == true -> true
         currentRoute?.startsWith("gallery/") == true || currentRoute?.startsWith("reader/") == true -> false
         currentRoute == "main" && lastMainDestination == MainDestination.Library.route -> true
@@ -316,31 +304,13 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
                     onLibraryBookClick = viewModel::openLibraryBookTab,
                 )
             }
-            composable(SEARCH_FROM_GALLERY_ROUTE) {
-                MainShell(
-                    viewModel = viewModel,
-                    initialDestinationRoute = MainDestination.Browser.route,
-                    onDestinationChanged = {},
-                    onGalleryClick = {
-                        val libraryBookId = viewModel.libraryBookIdForGallery(it)
-                        if (libraryBookId != null) viewModel.openLibraryBookTab(libraryBookId)
-                        else viewModel.selectGallery(it)
-                    },
-                    onGalleryLongClick = openGalleryInNewTab,
-                    onLibraryBookClick = viewModel::openLibraryBookTab,
-                    onBackToOrigin = {
-                        searchOpenedFromGallery = false
-                        viewModel.selectGalleryTab(viewModel.uiState.galleryWorkspace.activeTabId)
-                    },
-                )
-            }
             composable("library-series/{seriesName}") { entry ->
                 val initial = remember(entry.id) { viewModel.uiState.galleryWorkspace.activeTab.currentPage as? BrowserPage.LibrarySeries } ?: return@composable
                 val page = (viewModel.uiState.galleryWorkspace.activeTab.currentPage as? BrowserPage.LibrarySeries)?.takeIf { it.key == initial.key } ?: initial
                 BackHandler(onBack = galleryBack)
                 LibraryTabContent(viewModel, PaddingValues(0.dp), viewModel::openLibraryBookTab, galleryBack,
-                    onSearchFacet = { searchOpenedFromGallery = true; viewModel.searchFromFacet(it) },
-                    onSearchLanguage = { searchOpenedFromGallery = true; viewModel.searchFromLanguage(it) }, seriesPage = page)
+                    onSearchFacet = viewModel::searchFromFacet,
+                    onSearchLanguage = viewModel::searchFromLanguage, seriesPage = page)
             }
             composable("library-detail/{bookId}") { entry ->
                 val bookId = entry.arguments?.getString("bookId") ?: return@composable
@@ -380,11 +350,9 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
                         }
                     },
                     onSearchFacet = { facet ->
-                        searchOpenedFromGallery = true
                         viewModel.searchFromFacet(facet)
                     },
                     onSearchLanguage = { language ->
-                        searchOpenedFromGallery = true
                         viewModel.searchFromLanguage(language)
                     },
                     options = {
@@ -651,7 +619,6 @@ private fun MainShell(
     onGalleryClick: (Long) -> Unit,
     onGalleryLongClick: (Long) -> Unit,
     onLibraryBookClick: (String) -> Unit,
-    onBackToOrigin: (() -> Unit)? = null,
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     var selectedRoute by rememberSaveable(initialDestinationRoute) { mutableStateOf(initialDestinationRoute) }
@@ -662,15 +629,13 @@ private fun MainShell(
         onDestinationChanged(selectedRoute)
     }
     val navigate: (MainDestination) -> Unit = { destination ->
-        if (destination == MainDestination.Library && onBackToOrigin != null) {
-            onBackToOrigin()
-        } else if (destination != selected) {
+        if (destination != selected) {
             viewModel.activateMainWorkspace(destination.route)
             selectedRoute = destination.route
         }
     }
     BackHandler(
-        enabled = onBackToOrigin != null || when (selected) {
+        enabled = when (selected) {
                 MainDestination.Browser -> viewModel.canGoBackInBrowserTab()
                 MainDestination.Library -> viewModel.canGoBackInGalleryTab()
                 else -> false
@@ -679,7 +644,6 @@ private fun MainShell(
             when {
                 selected == MainDestination.Browser && viewModel.canGoBackInBrowserTab() -> viewModel.goBackInBrowserTab()
                 selected == MainDestination.Library && viewModel.canGoBackInGalleryTab() -> viewModel.goBackInGalleryTab()
-                onBackToOrigin != null -> onBackToOrigin()
                 selected == MainDestination.Browser -> viewModel.goBackInBrowserTab()
                 else -> viewModel.goBackInGalleryTab()
             }
@@ -698,7 +662,6 @@ private fun MainShell(
             onGalleryLongClick = onGalleryLongClick,
             onLibraryBookClick = onLibraryBookClick,
             onNavigate = navigate,
-            onBackToOrigin = onBackToOrigin,
         )
     }
     val topBar: @Composable () -> Unit = {
@@ -770,7 +733,6 @@ internal fun MainBottomNavigation(selected: MainDestination, navigate: (MainDest
     }
 }
 
-private const val SEARCH_FROM_GALLERY_ROUTE = "search-from-gallery"
 
 @Composable
 private fun MainDestinationIcon(destination: MainDestination) {
@@ -860,7 +822,6 @@ private fun MainTabContent(
     onGalleryLongClick: (Long) -> Unit,
     onLibraryBookClick: (String) -> Unit,
     onNavigate: (MainDestination) -> Unit,
-    onBackToOrigin: (() -> Unit)? = null,
 ) {
     var connectionSettingsRequested by rememberSaveable { mutableStateOf(false) }
     val pageStates = rememberSaveableStateHolder()
@@ -934,8 +895,8 @@ private fun MainTabContent(
         MainDestination.Library -> LibraryTabContent(
             viewModel, contentPadding, onLibraryBookClick,
             onBack = { if (!viewModel.goBackInGalleryTab()) onNavigate(MainDestination.Browser) },
-            onSearchFacet = { viewModel.searchFromFacet(it); onNavigate(MainDestination.Browser) },
-            onSearchLanguage = { viewModel.searchFromLanguage(it); onNavigate(MainDestination.Browser) },
+            onSearchFacet = viewModel::searchFromFacet,
+            onSearchLanguage = viewModel::searchFromLanguage,
         )
         MainDestination.History -> RecentHistoryScreen(
             state = viewModel.uiState, contentPadding = contentPadding,

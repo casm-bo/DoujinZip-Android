@@ -74,8 +74,6 @@ import com.doujinzip.android.model.DownloadDestination
 import com.doujinzip.android.model.openTab
 import com.doujinzip.android.model.openGalleryInBackground
 import com.doujinzip.android.model.BackgroundGalleryTab
-import com.doujinzip.android.model.NewTabReturn
-import com.doujinzip.android.model.closeTabReturningTo
 import com.doujinzip.android.model.pushPage
 import com.doujinzip.android.model.continueLibraryReader
 import com.doujinzip.android.model.openLibraryReader
@@ -351,6 +349,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         appStyle = appearancePreferenceStore.loadStyle()))
         private set
     private var navigationPage: BrowserPage = BrowserPage.Search()
+    private data class TabLocation(val gallery: Boolean, val tabId: String, val pageKey: String)
+    private data class TabReturn(val origin: TabLocation, val destination: TabLocation)
+    private val tabReturns = ArrayDeque<TabReturn>()
 
     private fun readInitialState(): Pair<MainUiState, BrowserPage> {
         val profiles = profileStore.load()
@@ -1103,18 +1104,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 (it.currentPage as? BrowserPage.LibraryBook)?.bookId == bookId }?.let {
                 return BackgroundGalleryTab(workspace, it.id, alreadyOpen = true, galleryWorkspace = true)
             }
-            var next = workspace.openTab(BrowserPage.LibraryBook(bookId, book.title), activate = false)
+            val next = workspace.openTab(BrowserPage.LibraryBook(bookId, book.title), activate = false)
             val tabId = next.tabs.last().id.takeIf { next != workspace }
-            if (tabId != null) next = rememberNewTab(next, tabId, true, uiState.browserWorkspace.activeTabId, false, activate = false)
             uiState = uiState.copy(galleryWorkspace = next)
             browserPreferenceStore.saveGalleryWorkspace(next)
             return BackgroundGalleryTab(next, tabId, galleryWorkspace = true)
         }
         val gallery = uiState.galleryCache[galleryId]
             ?: uiState.galleries.firstOrNull { it.id == galleryId } ?: return null
-        var result = uiState.browserWorkspace.openGalleryInBackground(galleryId, gallery.title)
-        if (!result.alreadyOpen && result.tabId != null) result = result.copy(workspace = rememberNewTab(
-            result.workspace, result.tabId, false, uiState.browserWorkspace.activeTabId, false, activate = false))
+        val result = uiState.browserWorkspace.openGalleryInBackground(galleryId, gallery.title)
         if (result.workspace != uiState.browserWorkspace) {
             // Do not navigate or cancel the active search when adding a background tab.
             uiState = uiState.copy(browserWorkspace = result.workspace)
@@ -1184,10 +1182,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun initialMainDestination(): String = browserPreferenceStore.loadMainDestination()
     fun rememberMainDestination(route: String) = browserPreferenceStore.saveMainDestination(route)
     fun activateMainWorkspace(route: String) {
+        tabReturns.clear()
         if (route == "browser" || route == "library") {
             val gallery = route == "library"
-            navigationPage = (if (gallery) uiState.galleryWorkspace else uiState.browserWorkspace).activeTab.currentPage
-            browserPreferenceStore.saveActiveGalleryWorkspace(gallery)
+            if (gallery) applyGalleryWorkspace(uiState.galleryWorkspace)
+            else applyBrowserWorkspace(uiState.browserWorkspace, reload = true)
         }
     }
 
@@ -1218,13 +1217,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun newBrowserTab() {
         val opened = uiState.browserWorkspace.openTab(BrowserPage.Search(preferredLanguages = uiState.preferredLanguages))
-        val workspace = rememberNewTab(opened, opened.activeTabId, false, uiState.browserWorkspace.activeTabId, false)
-        applyBrowserWorkspace(
-            workspace,
-        )
+        rememberTabReturn(opened, gallery = false)
+        notifyNewTab()
+        applyBrowserWorkspace(opened)
     }
 
     fun selectBrowserTab(tabId: String) {
+        tabReturns.clear()
         applyBrowserWorkspace(uiState.browserWorkspace.selectTab(tabId), reload = true)
     }
 
@@ -1235,6 +1234,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             preferredLanguages = uiState.preferredLanguages,
         ))
         if (closingActiveTab) {
+            tabReturns.clear()
             applyBrowserWorkspace(workspace, reload = true)
         } else {
             uiState = uiState.copy(browserWorkspace = workspace)
@@ -1262,13 +1262,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun newGalleryTab() {
         val opened = uiState.galleryWorkspace.openTab(BrowserPage.LibraryHome())
-        val workspace = rememberNewTab(opened, opened.activeTabId, true, uiState.galleryWorkspace.activeTabId, true)
-        applyGalleryWorkspace(
-            workspace,
-        )
+        rememberTabReturn(opened, gallery = true)
+        notifyNewTab()
+        applyGalleryWorkspace(opened)
     }
 
     fun selectGalleryTab(tabId: String) {
+        tabReturns.clear()
         applyGalleryWorkspace(uiState.galleryWorkspace.selectTab(tabId))
     }
 
@@ -1277,6 +1277,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val closingActiveTab = tabId == current.activeTabId
         val workspace = current.closeTab(tabId, BrowserPage.LibraryHome())
         if (closingActiveTab) {
+            tabReturns.clear()
             applyGalleryWorkspace(workspace)
         } else {
             uiState = uiState.copy(galleryWorkspace = workspace)
@@ -1294,6 +1295,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val previous = if (isGallery) uiState.galleryWorkspace else uiState.browserWorkspace
         if (workspace == previous) return
         if (workspace.activeTabId != previous.activeTabId) {
+            tabReturns.clear()
             if (isGallery) applyGalleryWorkspace(workspace) else applyBrowserWorkspace(workspace, reload = true)
         } else if (isGallery) {
             uiState = uiState.copy(galleryWorkspace = workspace)
@@ -1322,38 +1324,53 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return true
     }
 
-    private fun rememberNewTab(workspace: BrowserWorkspace, tabId: String, isGallery: Boolean, originTabId: String, originIsGallery: Boolean, activate: Boolean = true): BrowserWorkspace {
-        val entry = NewTabReturn(tabId, isGallery, originTabId, originIsGallery)
-        uiState = uiState.copy(newTabNotice = uiState.newTabNotice + if (activate) 1 else 0)
-        return workspace.copy(tabs = workspace.tabs.map { if (it.id == tabId) it.copy(returnTo = entry) else it })
+    private fun notifyNewTab() {
+        uiState = uiState.copy(newTabNotice = uiState.newTabNotice + 1)
     }
 
-    fun canReturnFromNewTab(isGallery: Boolean): Boolean {
-        val workspace = if (isGallery) uiState.galleryWorkspace else uiState.browserWorkspace
-        return workspace.activeTab.returnTo?.isAtRoot(workspace, isGallery) == true
+    private fun tabWorkspace(gallery: Boolean) = if (gallery) uiState.galleryWorkspace else uiState.browserWorkspace
+
+    private fun tabLocation(workspace: BrowserWorkspace, gallery: Boolean) =
+        TabLocation(gallery, workspace.activeTabId, workspace.activeTab.currentPage.key)
+
+    private fun rememberTabReturn(destination: BrowserWorkspace, gallery: Boolean) {
+        val originGallery = navigationPage is BrowserPage.LibraryHome || navigationPage is BrowserPage.LibrarySeries ||
+            navigationPage is BrowserPage.LibraryBook || navigationPage is BrowserPage.LibraryReader
+        val origin = tabLocation(tabWorkspace(originGallery), originGallery)
+        val target = tabLocation(destination, gallery)
+        // Selecting a search in this tab can rewind its history. Keep the original page reachable.
+        if (origin != target) tabReturns.addLast(TabReturn(origin, target))
     }
+
+    private fun workspaceAt(location: TabLocation): BrowserWorkspace? {
+        val workspace = tabWorkspace(location.gallery)
+        val tab = workspace.tabs.firstOrNull { it.id == location.tabId } ?: return null
+        val index = tab.history.indexOfFirst { it.key == location.pageKey }
+        if (index < 0) return null
+        return workspace.copy(activeTabId = tab.id,
+            tabs = workspace.tabs.map { if (it.id == tab.id) it.copy(currentIndex = index) else it })
+    }
+
+    fun canReturnFromNewTab(isGallery: Boolean): Boolean =
+        tabReturns.lastOrNull()?.let {
+            it.destination == tabLocation(tabWorkspace(isGallery), isGallery) && workspaceAt(it.origin) != null
+        } == true
 
     private fun returnFromNewTab(isGallery: Boolean): Boolean {
-        if (!canReturnFromNewTab(isGallery)) return false
-        val previous = if (isGallery) uiState.galleryWorkspace else uiState.browserWorkspace
-        val entry = requireNotNull(previous.activeTab.returnTo)
-        val closed = previous.closeTabReturningTo(entry.tabId, entry.originTabId,
-            if (isGallery) BrowserPage.LibraryHome() else BrowserPage.Search(preferredLanguages = uiState.preferredLanguages))
-        if (entry.originIsGallery == isGallery) {
-            if (isGallery) applyGalleryWorkspace(closed) else applyBrowserWorkspace(closed, reload = true)
-        } else {
-            if (isGallery) {
-                uiState = uiState.copy(galleryWorkspace = closed)
-                browserPreferenceStore.saveGalleryWorkspace(closed)
-                applyBrowserWorkspace(uiState.browserWorkspace.selectTab(entry.originTabId), reload = true)
-            } else {
-                uiState = uiState.copy(browserWorkspace = closed)
-                browserPreferenceStore.saveBrowserWorkspace(closed)
-                removeClosedSearchSessions(previous, closed)
-                applyGalleryWorkspace(uiState.galleryWorkspace.selectTab(entry.originTabId))
-            }
-        }
+        val entry = tabReturns.lastOrNull() ?: return false
+        if (entry.destination != tabLocation(tabWorkspace(isGallery), isGallery)) return false
+        tabReturns.removeLast()
+        val origin = workspaceAt(entry.origin) ?: return false
+        if (entry.origin.gallery) applyGalleryWorkspace(origin) else applyBrowserWorkspace(origin, reload = true)
         return true
+    }
+
+    fun openBackgroundTab(tabId: String, gallery: Boolean) {
+        val workspace = tabWorkspace(gallery)
+        if (workspace.tabs.none { it.id == tabId }) return
+        val selected = workspace.selectTab(tabId)
+        rememberTabReturn(selected, gallery)
+        if (gallery) applyGalleryWorkspace(selected) else applyBrowserWorkspace(selected, reload = true)
     }
 
     fun updateBrowserScroll(pageKey: String, sessionId: String?, anchorKey: String?, index: Int, offset: Int, scrollPage: Int) {
@@ -3118,20 +3135,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun openSearchTab(query: String, preferredLanguages: Set<String>) {
         browserSearchJob?.cancel()
         browserPreferenceStore.savePreferredLanguages(preferredLanguages)
-        val originIsGallery = navigationPage is BrowserPage.LibraryHome || navigationPage is BrowserPage.LibrarySeries || navigationPage is BrowserPage.LibraryBook || navigationPage is BrowserPage.LibraryReader
-        val origin = if (originIsGallery) uiState.galleryWorkspace else uiState.browserWorkspace
         val current = uiState.browserWorkspace
-        val fromSubscriptionNotice = (navigationPage as? BrowserPage.OnlineGallery)?.returnToSubscriptionNotices == true
-        val existing = if (fromSubscriptionNotice) null else current.selectSearchTab(query, preferredLanguages)
+        val existing = current.selectSearchTab(query, preferredLanguages)
         if (existing != null) {
             val page = existing.activeTab.currentPage as BrowserPage.Search
+            rememberTabReturn(existing, gallery = false)
             applyBrowserWorkspace(existing, reload = true)
             if (page.currentPage == 0) startBrowserSearch(reset = true)
             return
         }
         val opened = current.openTab(BrowserPage.Search(query = query, preferredLanguages = preferredLanguages))
-        val workspace = rememberNewTab(opened, opened.activeTabId, false, origin.activeTabId, originIsGallery)
-        applyBrowserWorkspace(workspace)
+        rememberTabReturn(opened, gallery = false)
+        notifyNewTab()
+        applyBrowserWorkspace(opened)
         startBrowserSearch(reset = true)
     }
 

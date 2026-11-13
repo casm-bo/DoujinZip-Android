@@ -143,7 +143,7 @@ class SubscriptionNotificationTest {
                 compose.onNodeWithText("Synthetic private artist").performClick()
                 compose.waitUntil(10_000) {
                     val searchWorkspace = browser.loadBrowserWorkspace()
-                    searchWorkspace.tabs.size == 3 &&
+                    searchWorkspace.tabs.size == 2 &&
                         (searchWorkspace.activeTab.currentPage as? BrowserPage.Search)?.query == artistQuery
                 }
                 compose.waitForIdle()

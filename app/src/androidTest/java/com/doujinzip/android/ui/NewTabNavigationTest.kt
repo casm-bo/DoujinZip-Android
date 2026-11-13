@@ -9,7 +9,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.test.platform.app.InstrumentationRegistry
 import com.doujinzip.android.R
-import com.doujinzip.android.data.LibraryIdentityStore
 import com.doujinzip.android.model.*
 import com.doujinzip.android.security.BrowserPreferenceStore
 import com.doujinzip.android.security.SecureProfileStore
@@ -36,36 +35,34 @@ class NewTabNavigationTest {
             assertEquals(root.tabs.size, model.uiState.browserWorkspace.tabs.size)
             assertEquals(root.activeTab.currentPage.key, model.activeBrowserPage().key)
             assertTrue(model.goBackInBrowserTab())
+            assertTrue(model.activeBrowserPage() is BrowserPage.OnlineGallery)
+            assertTrue(model.goBackInBrowserTab())
+            assertEquals(root.activeTab.currentPage.key, model.activeBrowserPage().key)
+            assertTrue(model.goBackInBrowserTab())
             assertEquals(origin, model.activeBrowserPage())
+            assertEquals(root.tabs.size, model.uiState.browserWorkspace.tabs.size)
         }
     }
 
     @Test fun galleryTabReturnsToSeriesDetailAfterArtistSearch() = withModel { model ->
         val context = instrumentation.targetContext
         val name = "Synthetic navigation series"
-        val artist = "Synthetic navigation artist"
-        val key = seriesPresentationKey(name)
-        try {
-            instrumentation.runOnMainSync {
-                model.saveGalleryPresentation(GalleryPresentation(key, name, LibraryMetadata(artists = listOf(artist))))
-                model.selectLibrarySeries(name)
-            }
-            compose.setContent { DoujinZipTheme { DoujinZipApp(model) } }
-            compose.waitUntil(5_000) { compose.onAllNodesWithText(artist).fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithText(artist).performClick()
-            compose.onNodeWithText(context.getString(R.string.ui_gallery), ignoreCase = true).performClick()
-            compose.onNodeWithText(artist).assertIsDisplayed()
-            compose.runOnIdle {
-                assertEquals(name, (model.activeBrowserPage() as BrowserPage.LibrarySeries).name)
-            }
-        } finally {
-            LibraryIdentityStore(context).use {
-                it.writableDatabase.delete("gallery_presentations", "resource_key = ?", arrayOf(key))
-            }
+        instrumentation.runOnMainSync {
+            model.selectLibrarySeries(name)
+            model.searchFromFacet("artist:synthetic_navigation_artist")
+        }
+        compose.setContent { DoujinZipTheme { DoujinZipApp(model) } }
+        compose.onNodeWithText(context.getString(R.string.ui_gallery), ignoreCase = true).performClick()
+        compose.runOnIdle {
+            assertEquals(name, (model.activeBrowserPage() as BrowserPage.LibrarySeries).name)
+            assertFalse(model.canReturnFromNewTab(true))
+            assertFalse(model.canReturnFromNewTab(false))
+            assertTrue(model.goBackInGalleryTab())
+            assertTrue(model.activeBrowserPage() is BrowserPage.LibraryHome)
         }
     }
 
-    @Test fun galleryTabBackTraversesDescendantsBeforeClosingAtHome() = withModel { model ->
+    @Test fun galleryTabBackTraversesDescendantsAndKeepsTheTab() = withModel { model ->
         instrumentation.runOnMainSync {
             val origin = model.uiState.galleryWorkspace
             model.newGalleryTab()
@@ -79,11 +76,13 @@ class NewTabNavigationTest {
             assertTrue(model.activeBrowserPage() is BrowserPage.LibraryHome)
             assertEquals(opened.activeTabId, model.uiState.galleryWorkspace.activeTabId)
             assertTrue(model.goBackInGalleryTab())
-            assertEquals(origin, model.uiState.galleryWorkspace)
+            assertEquals(origin.activeTabId, model.uiState.galleryWorkspace.activeTabId)
+            assertEquals(opened.tabs.map { it.id }, model.uiState.galleryWorkspace.tabs.map { it.id })
+            assertFalse(model.goBackInGalleryTab())
         }
     }
 
-    @Test fun systemBackAtSearchRootClosesTabAndReturnsToGalleryOpener() = withModel { model ->
+    @Test fun systemBackAtSearchRootKeepsTabAndReturnsToGalleryOpener() = withModel { model ->
         lateinit var back: OnBackPressedDispatcher
         lateinit var origin: BrowserPage
         instrumentation.runOnMainSync {
@@ -97,7 +96,8 @@ class NewTabNavigationTest {
         compose.runOnIdle { back.onBackPressed() }
         compose.runOnIdle {
             assertEquals(origin, model.activeBrowserPage())
-            assertEquals(1, model.uiState.browserWorkspace.tabs.size)
+            assertEquals(2, model.uiState.browserWorkspace.tabs.size)
+            assertFalse(model.canReturnFromNewTab(false))
         }
     }
 
