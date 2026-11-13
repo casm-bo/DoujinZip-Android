@@ -117,9 +117,10 @@ fun SettingsScreen(
     var sectionName by rememberSaveable { mutableStateOf(initialSectionName) }
     val section = runCatching { SettingsSection.valueOf(sectionName) }.getOrDefault(SettingsSection.HOME)
     val openSection: (SettingsSection) -> Unit = { sectionName = it.name; onSectionChanged(it.name) }
+    val backFromChangelog: () -> Unit = { openSection(SettingsSection.SUPPORT) }
 
     BackHandler(enabled = section != SettingsSection.HOME) {
-        openSection(SettingsSection.HOME)
+        if (section == SettingsSection.CHANGELOG) backFromChangelog() else openSection(SettingsSection.HOME)
     }
 
     LaunchedEffect(openConnectionRequested) {
@@ -204,7 +205,7 @@ fun SettingsScreen(
         )
         SettingsSection.CHANGELOG -> ChangelogScreen(
             contentPadding = contentPadding,
-            onBack = { openSection(SettingsSection.SUPPORT) },
+            onBack = backFromChangelog,
         )
     }
 }
