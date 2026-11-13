@@ -35,7 +35,8 @@ class SearchScreenInsetsTest {
     private fun input(action: (EditText) -> Unit) = instrumentation.runOnMainSync { action(requireNotNull(findInput())) }
     @Test fun searchResultsReachKeyboardAboveReservedNavigationBar() = checkScreen(false)
     @Test fun galleryResultsReachKeyboardAndHistoryScrollKeepsInput() = checkScreen(true)
-    private fun checkScreen(gallery: Boolean) {
+    @Test fun searchResultsSelectMultipleGalleriesForBothActions() = checkScreen(false, selection = true)
+    private fun checkScreen(gallery: Boolean, selection: Boolean = false) {
         compose.activityRule.scenario.onActivity {
             it.enableEdgeToEdge()
             it.window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
@@ -45,6 +46,8 @@ class SearchScreenInsetsTest {
         val books = List(40) { LibraryBook("$it", "Fixture $it", locationUri = "fixture", locationName = "Fixture", folderUri = "",
             pages = emptyList(), modifiedAt = it.toLong(), metadata = LibraryMetadata(tags = listOf("draft"))) }
         val history = List(30) { SearchQueryEntry("artist:fixture_$it") }
+        var opened = emptyList<Long>()
+        var downloaded = emptyList<Long>()
         var state by mutableStateOf(MainUiState(libraryBooks = books, libraryLocations = listOf(StorageLocation("fixture", "Fixture")),
             libraryQueryHistory = history, searchQueryHistory = history,
             galleries = List(40) { GallerySummary(it.toLong() + 1, "Fixture $it", emptyList(), emptyList(), null, emptyList(), null, 1, null, publishedDate="2026-01-02") }))
@@ -113,6 +116,8 @@ class SearchScreenInsetsTest {
                         onJumpToPage = {},
                         onGalleryClick = {},
                         onGalleryLongClick = {},
+                        onOpenSelectedGalleries = { opened = it.map(GallerySummary::id) },
+                        onDownloadSelectedGalleries = { downloaded = it.map(GallerySummary::id) },
                         onSearchFacet = {},
                         onToggleLibraryFavorite = {},
                         onConnect = {},
@@ -126,6 +131,19 @@ class SearchScreenInsetsTest {
                     )
                 }
             } }
+        }
+        if (selection) {
+            fun selectTwo() {
+                compose.onNodeWithText("Fixture 0").performTouchInput { longClick() }.assertIsSelected()
+                compose.onNodeWithText("Fixture 1").performClick().assertIsSelected()
+            }
+            selectTwo()
+            compose.onNodeWithText(strings.getString(R.string.ui_open_in_new_tab)).performClick()
+            compose.runOnIdle { assertEquals(listOf(1L, 2L), opened) }
+            selectTwo()
+            compose.onNodeWithText(strings.getString(R.string.ui_download)).performClick()
+            compose.runOnIdle { assertEquals(listOf(1L, 2L), downloaded) }
+            return
         }
         if(!gallery) compose.onAllNodesWithText(strings.getString(R.string.ui_uploaded,"2026.01.02")).onFirst().assertIsDisplayed()
         compose.onNode(hasScrollAction()).performScrollToIndex(39)

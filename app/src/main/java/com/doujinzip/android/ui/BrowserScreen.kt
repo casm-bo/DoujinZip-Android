@@ -138,6 +138,8 @@ fun BrowserScreen(
     onJumpToPage: (Int) -> Unit,
     onGalleryClick: (Long) -> Unit,
     onGalleryLongClick: (Long) -> Unit,
+    onOpenSelectedGalleries: (List<GallerySummary>) -> Unit = {},
+    onDownloadSelectedGalleries: (List<GallerySummary>) -> Unit = {},
     onSearchFacet: (String) -> Unit,
     onToggleLibraryFavorite: (String) -> Unit,
     onConnect: () -> Unit,
@@ -267,6 +269,12 @@ fun BrowserScreen(
     }
     BackHandler(editing) { editing = false; focusManager.clearFocus() }
     var menu by remember { mutableStateOf<String?>(null) }
+    var selectedGalleries by remember(pageKey) { mutableStateOf(emptyMap<Long, GallerySummary>()) }
+    fun toggleSelection(gallery: GallerySummary) {
+        selectedGalleries = if (gallery.id in selectedGalleries) selectedGalleries - gallery.id
+        else selectedGalleries + (gallery.id to gallery)
+    }
+    BackHandler(selectedGalleries.isNotEmpty()) { selectedGalleries = emptyMap() }
     val viewPreferences = remember(context) { LibraryPreferenceStore(context) }
     var gridView by rememberSaveable { mutableStateOf(viewPreferences.loadSearchGridView()) }
     var gridColumns by rememberSaveable { mutableIntStateOf(viewPreferences.loadSearchGridColumns()) }
@@ -294,7 +302,7 @@ fun BrowserScreen(
     var pageDialog by rememberSaveable { mutableStateOf(false) }
     var pageInput by rememberSaveable { mutableStateOf("") }
     val searchExpansion = LocalInlineSearch.current ?: remember(pageKey) { InlineSearchState() }
-    val canCollapse = resultIds.isNotEmpty() && !editing && !searchExpansion.expanded && menu == null && !pageDialog
+    val canCollapse = resultIds.isNotEmpty() && selectedGalleries.isEmpty() && !editing && !searchExpansion.expanded && menu == null && !pageDialog
     val collapseEnabled by rememberUpdatedState(canCollapse)
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(canScroll = { collapseEnabled })
     LaunchedEffect(pageKey, canCollapse) {
@@ -332,6 +340,19 @@ fun BrowserScreen(
             }
         })
         if (!searchExpansion.expanded) {
+        if (selectedGalleries.isNotEmpty()) {
+            FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                TextButton(onClick = { selectedGalleries = emptyMap() }) { Text(strings[R.string.ui_cancel]) }
+                TextButton(onClick = {
+                    onOpenSelectedGalleries(selectedGalleries.values.toList())
+                    selectedGalleries = emptyMap()
+                }) { Text(strings[R.string.ui_open_in_new_tab]) }
+                TextButton(onClick = {
+                    onDownloadSelectedGalleries(selectedGalleries.values.toList())
+                    selectedGalleries = emptyMap()
+                }) { Text(strings[R.string.ui_download]) }
+            }
+        } else {
         FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             OutlinedButton(onClick = { togglePanel("languages") }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 colors = activeFilterButtonColors(state.preferredLanguages.isNotEmpty() || editing && expandedPanel == "languages")) {
@@ -358,6 +379,7 @@ fun BrowserScreen(
                 onPopularity = { selectOrder(if (it == "today") "sort:daily" else "sort:weekly") }) { oldest ->
                 selectOrder(if (oldest) "sort:oldest" else "sort:newest")
             }
+        }
         }
         AnimatedVisibility(visible = editing && (expandedPanel != null || state.filterSuggestions.isNotEmpty() || state.isLoadingFilterSuggestions), enter = expandVertically(expandFrom = Alignment.Top), exit = shrinkVertically(shrinkTowards = Alignment.Top)) {
             OutlinedCard(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
@@ -459,9 +481,11 @@ fun BrowserScreen(
                         libraryBook = libraryBook,
                         favorite = libraryBook?.id?.let { it in state.libraryFavoriteIds } == true || "online:$id" in state.libraryFavoriteIds,
                         onToggleFavorite = { onToggleLibraryFavorite("online:$id") },
-                        onClick = { onGalleryClick(gallery.id) },
-                        onLongClick = { onGalleryLongClick(gallery.id) },
-                        onSearchFacet = onSearchFacet,
+                        onClick = { if (selectedGalleries.isEmpty()) onGalleryClick(gallery.id) else toggleSelection(gallery) },
+                        onLongClick = { toggleSelection(gallery) },
+                        onSearchFacet = { facet -> if (selectedGalleries.isEmpty()) onSearchFacet(facet) else toggleSelection(gallery) },
+                        selected = gallery.id in selectedGalleries,
+                        selectionEnabled = true,
                     )
                 }
             }
@@ -533,6 +557,8 @@ internal fun GalleryCard(
     onLongClick: () -> Unit,
     onSearchFacet: (String) -> Unit,
     linkArtists: Boolean = false,
+    selected: Boolean = false,
+    selectionEnabled: Boolean = false,
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     val context = LocalContext.current
@@ -549,7 +575,8 @@ internal fun GalleryCard(
         tags = gallery.tags.map { tag -> CardTag(tagDisplayInfo(tag.name, tag.type)) { onSearchFacet(tagSearchFacet(tag.name, tag.type)) } },
         footer = gallery.loadError ?: formatGalleryPublishedDate(gallery.publishedDate)?.let { strings[R.string.ui_uploaded, it] }.orEmpty(),
         footerError = gallery.loadError != null,
-        longClickLabel = strings[R.string.ui_open_in_new_tab], grid = gridView, onClick = onClick, onLongClick = onLongClick,
+        longClickLabel = if (selectionEnabled) null else strings[R.string.ui_open_in_new_tab],
+        grid = gridView, onClick = onClick, onLongClick = onLongClick, selected = selected,
         border = galleryCardBorder(favorite = favorite),
         webtoon = gallery.webtoon == true,
     ) {

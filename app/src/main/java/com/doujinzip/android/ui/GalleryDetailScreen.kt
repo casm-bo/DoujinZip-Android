@@ -75,6 +75,7 @@ fun GalleryDetailScreen(
     webtoon: Boolean = false,
     tabBar: (@Composable () -> Unit)? = null,
     onRefresh: (Long) -> Unit = {},
+    onOpenInNewTab: (() -> Unit)? = null,
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     Scaffold(
@@ -115,7 +116,8 @@ fun GalleryDetailScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         DetailHeader(preferredLocalizedTitle(gallery.title), gallery.presentation().metadata,
                             gallery.thumbnailUrl?.let { hitomiImageRequest(context, it, gallery.id, crossfade = false) },
-                            gallery.pageCount, onSearchFacet = onSearchFacet, onSearchLanguage = onSearchLanguage, options = options, webtoon = webtoon)
+                            gallery.pageCount, onSearchFacet = onSearchFacet, onSearchLanguage = onSearchLanguage, options = options,
+                            webtoon = webtoon, onOpenInNewTab = onOpenInNewTab)
                         val pendingRequest = state.downloadRequests.any { it.galleryId == gallery.id && (!it.isFinished || it.status == RequestStatus.SENT) }
                         val downloaded = state.hasDownloadedGallery(gallery.id)
                         val queuedDownload = state.downloadQueue.firstOrNull {

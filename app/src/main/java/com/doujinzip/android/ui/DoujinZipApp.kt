@@ -429,6 +429,7 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
                     onLoadPreview = viewModel::loadReader,
                     onBack = searchBack,
                     onOpenReader = { page -> viewModel.openOnlineReaderTab(galleryId, page) },
+                    onOpenInNewTab = { openGalleryInNewTab(galleryId) },
                     onSearchFacet = { facet ->
                         viewModel.searchFromFacet(facet)
                     },
@@ -877,6 +878,13 @@ private fun MainTabContent(
                 onJumpToPage = viewModel::jumpToSearchPage,
                 onGalleryClick = onGalleryClick,
                 onGalleryLongClick = onGalleryLongClick,
+                onOpenSelectedGalleries = { galleries ->
+                    galleries.forEach { gallery ->
+                        viewModel.rememberFeedGallery(gallery)
+                        viewModel.openGalleryBackgroundTab(gallery.id)
+                    }
+                },
+                onDownloadSelectedGalleries = viewModel::downloadGalleries,
                 onSearchFacet = viewModel::searchFromFacet,
                 onToggleLibraryFavorite = viewModel::toggleLibraryFavorite,
                 onUnhideGallery = { viewModel.setLibraryBooksHidden(setOf("online:$it"), false) },

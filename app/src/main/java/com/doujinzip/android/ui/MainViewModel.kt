@@ -239,6 +239,9 @@ data class MainUiState(
     val downloadLocation: StorageLocation? = null,
     val downloadDestination: DownloadDestination = DownloadDestination.ASK,
     val pendingDownloadGallery: GallerySummary? = null,
+    val pendingDownloadCount: Int = 0,
+    val pendingDeviceDownloadAvailable: Boolean = true,
+    val pendingDesktopDownloadAvailable: Boolean = true,
     val downloadFolderRequired: Boolean = false,
     val desktopDownloadConnectionPrompt: Boolean = false,
     val settingsSectionRequest: String? = null,
@@ -315,7 +318,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var librarySuggestionIndex: Pair<List<LibraryBook>, List<String>>? = null
     private var suggestionJob: Job? = null
     private var libraryQueryJob: Job? = null
-    private var downloadAfterFolder: GallerySummary? = null
+    private var pendingDownloadBatch = emptyList<GallerySummary>()
     private var browserSearchJob: Job? = null
     private var searchWindowJob: Job? = null
     private var requestedSearchPages: IntRange = IntRange.EMPTY
@@ -1661,35 +1664,57 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         uiState = uiState.copy(desktopDownloadConnectionPrompt = false)
     }
     fun requestSettingsSection(section: String) {
-        uiState = uiState.copy(settingsSectionRequest = section, pendingDownloadGallery = null, downloadFolderRequired = false,
+        pendingDownloadBatch = emptyList()
+        uiState = uiState.copy(settingsSectionRequest = section, pendingDownloadGallery = null, pendingDownloadCount = 0, downloadFolderRequired = false,
             desktopDownloadConnectionPrompt = false)
     }
     var settingsSectionName: String = "HOME"
 
     fun consumeSettingsSectionRequest() { uiState = uiState.copy(settingsSectionRequest = null) }
     fun cancelDownloadPrompt() {
-        downloadAfterFolder = null
-        uiState = uiState.copy(pendingDownloadGallery = null, downloadFolderRequired = false)
+        pendingDownloadBatch = emptyList()
+        uiState = uiState.copy(pendingDownloadGallery = null, pendingDownloadCount = 0, downloadFolderRequired = false)
     }
     fun chooseDownloadDestination(value: DownloadDestination) {
-        val gallery = uiState.pendingDownloadGallery ?: return
-        uiState = uiState.copy(pendingDownloadGallery = null, downloadFolderRequired = false)
-        enqueueGalleryDownload(gallery, value)
+        if (uiState.pendingDownloadGallery == null) return
+        val galleries = pendingDownloadBatch
+        pendingDownloadBatch = emptyList()
+        uiState = uiState.copy(pendingDownloadGallery = null, pendingDownloadCount = 0, downloadFolderRequired = false)
+        enqueueGalleryDownloads(galleries, value)
     }
-    fun downloadGallery(gallery: GallerySummary) {
-        if (gallery.id in uiState.downloadingGalleryIds) return
-        if (uiState.allDownloadDestinationsOwned(gallery.id, requestStore.requests.value)) {
-            uiState = uiState.copy(message = strings[R.string.ui_completed], isError = false)
-            return
+    fun downloadGallery(gallery: GallerySummary) = downloadGalleries(listOf(gallery))
+
+    fun downloadGalleries(galleries: List<GallerySummary>) {
+        val requests = requestStore.requests.value
+        val available = galleries.distinctBy { it.id }.filter { gallery ->
+            gallery.id !in uiState.downloadingGalleryIds &&
+                !uiState.allDownloadDestinationsOwned(gallery.id, requests) &&
+                requests.none { it.galleryId == gallery.id && (!it.isFinished || it.status == RequestStatus.SENT) }
         }
-        if (requestStore.requests.value.any { it.galleryId == gallery.id && (!it.isFinished || it.status == RequestStatus.SENT) }) {
-            uiState = uiState.copy(message = strings[R.string.msg_already_in_the_download_list])
+        if (available.isEmpty()) {
+            val gallery = galleries.singleOrNull() ?: return
+            if (gallery.id in uiState.downloadingGalleryIds) return
+            val complete = uiState.allDownloadDestinationsOwned(gallery.id, requests)
+            uiState = uiState.copy(message = strings[if (complete) R.string.ui_completed else R.string.msg_already_in_the_download_list], isError = false)
             return
         }
         if (uiState.downloadDestination == DownloadDestination.ASK) {
-            uiState = uiState.copy(pendingDownloadGallery = gallery, downloadFolderRequired = false)
-        } else enqueueGalleryDownload(gallery, uiState.downloadDestination)
+            pendingDownloadBatch = available
+            uiState = uiState.copy(pendingDownloadGallery = available.first(), pendingDownloadCount = available.size,
+                pendingDeviceDownloadAvailable = available.any { !uiState.hasDownloadedGallery(it.id, DownloadDestination.DEVICE, requests) },
+                pendingDesktopDownloadAvailable = available.any { !uiState.hasDownloadedGallery(it.id, DownloadDestination.DESKTOP, requests) },
+                downloadFolderRequired = false)
+        } else enqueueGalleryDownloads(available, uiState.downloadDestination)
     }
+
+    private fun enqueueGalleryDownloads(galleries: List<GallerySummary>, destination: DownloadDestination) {
+        if (galleries.isEmpty()) return
+        if (destination == DownloadDestination.DEVICE && uiState.downloadLocation == null) {
+            pendingDownloadBatch = galleries
+            uiState = uiState.copy(pendingDownloadGallery = galleries.first(), pendingDownloadCount = galleries.size, downloadFolderRequired = true)
+        } else galleries.forEach { enqueueGalleryDownload(it, destination) }
+    }
+
     private fun enqueueGalleryDownload(gallery: GallerySummary, destination: DownloadDestination) {
         if (destination == DownloadDestination.ASK || gallery.id in uiState.downloadingGalleryIds) return
         if (requestStore.requests.value.any { it.galleryId == gallery.id && !it.isFinished }) return
@@ -1699,11 +1724,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         val location = uiState.downloadLocation
-        if (local && location == null) {
-            downloadAfterFolder = gallery
-            uiState = uiState.copy(pendingDownloadGallery = gallery, downloadFolderRequired = true)
-            return
-        }
+        if (local && location == null) return
         val profile = if (local) null else selectedProfile()
         val request = DownloadRequest(galleryId = gallery.id, title = gallery.title, thumbnailUrl = gallery.thumbnailUrl,
             target = if (local) DownloadTarget.LOCAL else DownloadTarget.DESKTOP, profileId = profile?.id,
@@ -2887,10 +2908,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val location = StorageLocation(uri, displayName)
         browserPreferenceStore.saveDownloadLocation(location)
         uiState = uiState.copy(downloadLocation = location)
-        downloadAfterFolder?.let { gallery ->
-            downloadAfterFolder = null
-            uiState = uiState.copy(pendingDownloadGallery = null, downloadFolderRequired = false)
-            enqueueGalleryDownload(gallery, DownloadDestination.DEVICE)
+        if (uiState.downloadFolderRequired) {
+            val galleries = pendingDownloadBatch
+            pendingDownloadBatch = emptyList()
+            uiState = uiState.copy(pendingDownloadGallery = null, pendingDownloadCount = 0, downloadFolderRequired = false)
+            enqueueGalleryDownloads(galleries, DownloadDestination.DEVICE)
         }
     }
 

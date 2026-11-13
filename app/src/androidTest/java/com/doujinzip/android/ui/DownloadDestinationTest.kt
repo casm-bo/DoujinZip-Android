@@ -84,13 +84,17 @@ class DownloadDestinationTest {
             }
             model.awaitStarted()
             instrumentation.runOnMainSync {
-                model.downloadGallery(fixture)
+                val second = fixture.copy(id = fixture.id + 1)
+                model.downloadGalleries(listOf(fixture, second, fixture))
                 assertEquals(fixture, model.uiState.pendingDownloadGallery)
+                assertEquals(2, model.uiState.pendingDownloadCount)
                 assertEquals(before, requests.requests.value)
                 model.chooseDownloadDestination(DownloadDestination.DEVICE)
                 assertTrue(model.uiState.downloadFolderRequired)
+                assertEquals(2, model.uiState.pendingDownloadCount)
                 assertEquals(before, requests.requests.value)
                 model.cancelDownloadPrompt()
+                assertEquals(0, model.uiState.pendingDownloadCount)
                 model.setDownloadDestination(DownloadDestination.DESKTOP)
                 assertTrue(model.uiState.desktopDownloadConnectionPrompt)
                 model.dismissDesktopDownloadConnectionPrompt(true)

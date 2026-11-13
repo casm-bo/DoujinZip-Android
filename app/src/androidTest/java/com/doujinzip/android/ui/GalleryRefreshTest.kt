@@ -21,11 +21,15 @@ class GalleryRefreshTest {
         var state by mutableStateOf(MainUiState(downloadDestination = DownloadDestination.DEVICE,
             readerPagesByGalleryId = mapOf(42L to listOf("file:///fixture-page.png"))))
         var refreshes = 0
+        var openedInTab = 0
         compose.setContent { DoujinZipTheme {
             GalleryDetailScreen("fixture", ReaderPosition(0), {}, gallery, state, {}, {}, {}, {}, {}, {},
-                onRefresh = { assertEquals(42L, it); refreshes++; state = state.copy(refreshingGalleryIds = setOf(it)) })
+                onRefresh = { assertEquals(42L, it); refreshes++; state = state.copy(refreshingGalleryIds = setOf(it)) },
+                onOpenInNewTab = { openedInTab++ })
         } }
         compose.onNodeWithText(strings.getString(R.string.ui_download)).assertIsEnabled()
+        compose.onNodeWithText("Fixture").performTouchInput { longClick() }
+        compose.runOnIdle { assertEquals(1, openedInTab) }
         compose.runOnIdle { state = state.copy(downloadRequests = listOf(DownloadRequest(galleryId = 42, title = "Fixture",
             target = DownloadTarget.LOCAL, status = RequestStatus.COMPLETED))) }
         compose.onNodeWithText(strings.getString(R.string.ui_completed)).assertIsNotEnabled()

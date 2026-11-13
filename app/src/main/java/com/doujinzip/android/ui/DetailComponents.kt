@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.*
@@ -54,12 +55,18 @@ internal fun DetailImage(model: Any?, contentDescription: String?, modifier: Mod
 @Composable
 internal fun DetailHeader(title: String, metadata: LibraryMetadata, coverModel: Any?, pageCount: Int, information: String? = null,
     onSearchFacet: (String) -> Unit, onSearchLanguage: (String) -> Unit, options: (@Composable () -> Unit)? = null,
-    webtoon: Boolean = false) {
+    webtoon: Boolean = false, onOpenInNewTab: (() -> Unit)? = null) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         if (coverModel != null) DetailImage(coverModel, title, Modifier.fillMaxWidth().height(390.dp))
         Row(verticalAlignment = Alignment.Top) {
-            SelectionContainer(Modifier.weight(1f)) { Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
+            if (onOpenInNewTab == null) {
+                SelectionContainer(Modifier.weight(1f)) { Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
+            } else {
+                Text(title, Modifier.weight(1f).combinedClickable(onClick = {}, onLongClick = onOpenInNewTab,
+                    onLongClickLabel = strings[R.string.ui_open_in_new_tab]),
+                    style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            }
             options?.invoke()
         }
         FacetSection(strings[R.string.ui_artist], metadata.artists, "artist", onSearchFacet)
