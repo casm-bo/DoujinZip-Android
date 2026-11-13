@@ -7,6 +7,13 @@ internal data class AppChangelog(
 
 internal val appChangelog = listOf(
     AppChangelog(
+        version = "1.5.3",
+        changes = listOf(
+            "[🐞 버그 수정] 구독 피드에서 작가 이름을 누르면 해당 작가의 검색 탭이 열립니다.",
+            "[🐞 버그 수정] 강제 종료나 크래시가 감지되면 다음 실행에서 검색 탭을 엽니다. 기존 탭과 읽던 위치는 보존합니다.",
+        ),
+    ),
+    AppChangelog(
         version = "1.5.2",
         changes = listOf(
             "[✨ 기능] 진단 데이터에 최근 앱 크래시 요약을 포함합니다.",
