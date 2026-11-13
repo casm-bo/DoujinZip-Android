@@ -21,6 +21,18 @@ class NewTabNavigationTest {
     @get:Rule val compose = createComposeRule()
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
 
+    @Test fun settingsKeepsScrollWhenReturningFromDetails() = withModel { model ->
+        val context = instrumentation.targetContext
+        instrumentation.runOnMainSync { model.rememberMainDestination(MainDestination.Settings.route) }
+        compose.setContent { DoujinZipTheme { DoujinZipApp(model) } }
+        val backup = context.getString(R.string.ui_about)
+        val list = compose.onNode(hasScrollAction())
+        list.performScrollToNode(hasText(backup))
+        val before = compose.onNodeWithText(backup).getUnclippedBoundsInRoot().top
+        compose.onNodeWithText(backup).performClick()
+        compose.onNodeWithText("<").performClick()
+        assertEquals(before.value, compose.onNodeWithText(backup).assertIsDisplayed().getUnclippedBoundsInRoot().top.value, 1f)
+    }
     @Test fun repeatedFacetReturnsToExistingSearchTab() = withModel { model ->
         instrumentation.runOnMainSync {
             val origin = model.activeBrowserPage()

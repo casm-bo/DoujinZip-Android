@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -116,6 +118,7 @@ fun SettingsScreen(
     val strings = androidx.compose.ui.platform.LocalResources.current
     var sectionName by rememberSaveable { mutableStateOf(initialSectionName) }
     val section = runCatching { SettingsSection.valueOf(sectionName) }.getOrDefault(SettingsSection.HOME)
+    val homeListState = rememberLazyListState()
     val openSection: (SettingsSection) -> Unit = { sectionName = it.name; onSectionChanged(it.name) }
     val backFromChangelog: () -> Unit = { openSection(SettingsSection.SUPPORT) }
 
@@ -149,6 +152,7 @@ fun SettingsScreen(
         SettingsSection.HOME -> SettingsHomeScreen(
             state = state,
             contentPadding = contentPadding,
+            listState = homeListState,
             onOpenSection = openSection,
         )
         SettingsSection.APPEARANCE -> AppearanceSettingsScreen(
@@ -214,10 +218,12 @@ fun SettingsScreen(
 private fun SettingsHomeScreen(
     state: MainUiState,
     contentPadding: PaddingValues,
+    listState: LazyListState,
     onOpenSection: (SettingsSection) -> Unit,
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize().padding(contentPadding),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
