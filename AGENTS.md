@@ -51,7 +51,7 @@ Wait for my approval before invoking any Superpowers workflow.
 
 ## Changelog and Release Notes
 
-- For each version, show each non-empty category once as a heading in this order: `✨ 기능`, `🐞 버그 수정`, `🎨 UI 개선`. Put its changes in a bullet list below the heading. Apply this format to the in-app changelog, `CHANGELOG.md`, and release notes.
+- For each version, show each non-empty category once as a heading in this order: `✨ 기능`, `🐞 버그 수정`, `🎨 UI 개선`. Summarize its changes in a single bullet below the heading, keeping the key user-facing details. Apply this format to the in-app changelog, `CHANGELOG.md`, and release notes.
 - Put layout, scaling, language-list presentation, controls, and visual contrast under `UI 개선`, rather than separate screen or language categories.
 - Keep entries concise and user-facing. Use the same approved wording in the app changelog and release notes; Android also updates `CHANGELOG.md`.
 - Show the proposed changelog to the user and obtain approval before version commits, tags, or release publication. Approval of the wording authorizes the requested release to proceed.
