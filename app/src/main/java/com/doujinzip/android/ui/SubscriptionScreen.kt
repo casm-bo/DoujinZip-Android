@@ -87,19 +87,22 @@ internal fun SubscriptionScreen(state: MainUiState, onClose: () -> Unit, onTab: 
         state.subscriptionSyncError?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
         state.subscriptionError?.let { Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall) }
         if(state.subscriptionTab==0) {
-            FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp),verticalArrangement=Arrangement.Center) {
-                TextButton({onRead(null)},enabled=state.subscriptionNotices.any { !it.read }) { Text(strings[R.string.sub_all_read]) }
-                val allSelected = noticeIds.isNotEmpty() && selectedNotices == noticeIds
-                TextButton({ selection = if (allSelected) emptySet() else noticeIds }, enabled = noticeIds.isNotEmpty()) {
-                    Text(strings[if (allSelected) R.string.ui_deselect_all else R.string.ui_select_all])
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton({onRead(null)},enabled=state.subscriptionNotices.any { !it.read }) { Text(strings[R.string.sub_all_read]) }
+                    val allSelected = noticeIds.isNotEmpty() && selectedNotices == noticeIds
+                    TextButton({ selection = if (allSelected) emptySet() else noticeIds }, enabled = noticeIds.isNotEmpty()) {
+                        Text(strings[if (allSelected) R.string.ui_deselect_all else R.string.ui_select_all])
+                    }
+                    if (selectedNotices.isNotEmpty()) {
+                        TextButton({
+                            onDismissNotices(selectedNotices)
+                            selection = emptySet()
+                        }) { Text(strings[R.string.ui_delete], color = MaterialTheme.colorScheme.error) }
+                    }
                 }
-                if (selectedNotices.isNotEmpty()) {
-                    TextButton({
-                        onDismissNotices(selectedNotices)
-                        selection = emptySet()
-                    }) { Text(strings[R.string.ui_delete], color = MaterialTheme.colorScheme.error) }
-                } else {
-                    OutlinedButton(onRefresh,enabled=!state.subscriptionsBusy,contentPadding=PaddingValues(horizontal=10.dp,vertical=2.dp),modifier=Modifier.heightIn(min=32.dp)) {ActionIcon(ActionSymbol.REFRESH);Spacer(Modifier.width(8.dp));Text(strings[R.string.sub_check_now])}
+                if (selectedNotices.isEmpty()) {
+                    OutlinedButton(onRefresh,enabled=!state.subscriptionsBusy,contentPadding=PaddingValues(horizontal=10.dp,vertical=2.dp),modifier=Modifier.fillMaxWidth(0.5f).wrapContentWidth(Alignment.End).heightIn(min=32.dp)) {ActionIcon(ActionSymbol.REFRESH);Spacer(Modifier.width(8.dp));Text(strings[R.string.sub_check_now])}
                 }
             }
         }
