@@ -653,4 +653,6 @@
     <string name="ui_server_scan_hint">Use the same local network. If discovery fails, enter the address under Advanced.</string>
     <string name="ui_reset_cover">Reset cover</string>
     <string name="ui_random_order">Random order</string>
+    <string name="ui_daily_popularity">Daily popularity</string>
+    <string name="ui_weekly_popularity">Weekly popularity</string>
 </resources>

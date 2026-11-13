@@ -16,7 +16,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.DropdownMenu
@@ -333,8 +332,7 @@ fun BrowserScreen(
             }
         })
         if (!searchExpansion.expanded) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             OutlinedButton(onClick = { togglePanel("languages") }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 colors = activeFilterButtonColors(state.preferredLanguages.isNotEmpty() || editing && expandedPanel == "languages")) {
                 ActionIcon(ActionSymbol.LANGUAGE); Spacer(Modifier.width(4.dp))
@@ -350,12 +348,15 @@ fun BrowserScreen(
             OutlinedButton(onClick = { setFeedVisible(true) }) {
                 ActionIcon(ActionSymbol.NEWSPAPER); Spacer(Modifier.width(4.dp)); Text(strings[R.string.feed_title])
             }
-        }
-            Spacer(Modifier.width(4.dp))
-            SearchSortMenu(state.searchQuery, enabled = !state.isLoadingPage) { oldest ->
-                val query = state.searchQuery.replace(Regex("(?i)(^|\\s)sort:(oldest|newest)(?=\\s|$)"), " ").trim()
-                onQueryChange(listOf(query, if (oldest) "sort:oldest" else "sort:newest").filter { it.isNotBlank() }.joinToString(" "))
+            fun selectOrder(token: String) {
+                val query = state.searchQuery.trim().split(Regex("\\s+"))
+                    .filter { it.isNotBlank() && it.lowercase() !in com.doujinzip.android.network.hitomiSortTokens }
+                onQueryChange((query + token).joinToString(" "))
                 onSearch()
+            }
+            SearchSortMenu(state.searchQuery, enabled = !state.isLoadingPage,
+                onPopularity = { selectOrder(if (it == "today") "sort:daily" else "sort:weekly") }) { oldest ->
+                selectOrder(if (oldest) "sort:oldest" else "sort:newest")
             }
         }
         AnimatedVisibility(visible = editing && (expandedPanel != null || state.filterSuggestions.isNotEmpty() || state.isLoadingFilterSuggestions), enter = expandVertically(expandFrom = Alignment.Top), exit = shrinkVertically(shrinkTowards = Alignment.Top)) {
@@ -622,18 +623,25 @@ private fun BoxScope.SearchPageIndicator(listState: LazyGridState, index: Search
 @Composable
 internal fun SearchSortMenu(
     query: String, enabled: Boolean, randomSelected: Boolean = false, onRandom: (() -> Unit)? = null,
+    onPopularity: ((String) -> Unit)? = null,
     onSelect: (Boolean) -> Unit,
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     var expanded by remember { mutableStateOf(false) }
-    val oldest = remember(query) { parseHitomiSearchOrder(query).oldest }
+    val order = remember(query) { parseHitomiSearchOrder(query) }
     Box {
         TextButton(onClick = { expanded = true }, enabled = enabled, contentPadding = PaddingValues(horizontal = 8.dp)) {
             ActionIcon(ActionSymbol.SORT); Spacer(Modifier.width(4.dp)); Text(strings[R.string.ui_sort])
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            ChoiceMenuItem(strings[R.string.ui_newest_first], !randomSelected && !oldest, onClick = { expanded = false; onSelect(false) }, enabled = enabled)
-            ChoiceMenuItem(strings[R.string.ui_oldest_first], !randomSelected && oldest, onClick = { expanded = false; onSelect(true) }, enabled = enabled)
+            ChoiceMenuItem(strings[R.string.ui_newest_first], !randomSelected && !order.oldest && order.popularity == null, onClick = { expanded = false; onSelect(false) }, enabled = enabled)
+            ChoiceMenuItem(strings[R.string.ui_oldest_first], !randomSelected && order.oldest, onClick = { expanded = false; onSelect(true) }, enabled = enabled)
+            if (onPopularity != null) {
+                ChoiceMenuItem(strings[R.string.ui_daily_popularity], order.popularity == "today",
+                    onClick = { expanded = false; onPopularity("today") })
+                ChoiceMenuItem(strings[R.string.ui_weekly_popularity], order.popularity == "week",
+                    onClick = { expanded = false; onPopularity("week") })
+            }
             if (onRandom != null) {
                 ChoiceMenuItem(strings[R.string.ui_random_order], randomSelected, onClick = { expanded = false; onRandom() })
             }

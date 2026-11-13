@@ -51,6 +51,7 @@ class HitomiClient {
         require(page > 0)
         val query = searchQuery.trim().lowercase(Locale.ROOT)
         val order = parseHitomiSearchOrder(query)
+        if (order.popularity != null) return@withContext searchPopular(listOf(query), page, order.popularity)
         val terms = order.terms
         val directId = terms.firstNotNullOfOrNull { it.removePrefix("id:").toLongOrNull()?.takeIf { id -> id > 0 } }
         if (directId != null) {
@@ -88,6 +89,27 @@ class HitomiClient {
                 synchronized(searches) {
                     if (searches.size >= 3) searches.remove(searches.keys.first())
                     searches[query] = System.currentTimeMillis() to found
+                }
+            }
+        }
+        val start = ((page.toLong() - 1) * 30).coerceAtMost(ids.size.toLong()).toInt()
+        SearchResult(ids.subList(start, minOf(start + 30, ids.size)), start + 30 < ids.size, ids.size)
+    }
+
+    internal suspend fun searchPopular(queries: List<String>, page: Int, period: String): SearchResult = withContext(Dispatchers.IO) {
+        require(page > 0 && period in setOf("today", "week"))
+        val key = queries.joinToString("\n", prefix = "popular/$period\n")
+        val cached = synchronized(searches) { searches[key] }
+        val ids = if (cached != null && System.currentTimeMillis() - cached.first < 300_000) cached.second else {
+            val terms = queries.map { parseHitomiSearchOrder(it).terms }
+            val directIds = terms.flatten().mapNotNull { it.removePrefix("id:").toLongOrNull()?.takeIf { id -> id > 0 } }
+            val ranking = directIds.ifEmpty { decodeHitomiIds(readResource("/n/popular/$period-all.nozomi")) }
+            val matches = terms.flatten().distinct().filter { it.removePrefix("id:").toLongOrNull()?.let { id -> id > 0 } != true }
+                .associateWith { termIds(it.removePrefix("-")).toSet() }
+            filterPopularityRanking(ranking, terms, matches).also { found ->
+                synchronized(searches) {
+                    if (searches.size >= 3) searches.remove(searches.keys.first())
+                    searches[key] = System.currentTimeMillis() to found
                 }
             }
         }
@@ -284,11 +306,30 @@ internal fun hitomiNozomiPath(term: String): String {
     }
 }
 
-internal data class HitomiSearchOrder(val terms: List<String>, val oldest: Boolean) {
+internal data class HitomiSearchOrder(val terms: List<String>, val oldest: Boolean, val popularity: String? = null) {
     fun sortIds(ids: Collection<Long>): List<Long> = if (oldest) ids.sorted() else ids.sortedDescending()
 }
 
 internal fun parseHitomiSearchOrder(query: String): HitomiSearchOrder {
     val tokens = query.trim().lowercase(Locale.ROOT).split(Regex("\\s+")).filter(String::isNotBlank)
-    return HitomiSearchOrder(tokens.filterNot { it == "sort:oldest" || it == "sort:newest" }, tokens.lastOrNull { it.startsWith("sort:") } == "sort:oldest")
+    val order = tokens.lastOrNull { it in hitomiSortTokens }
+    return HitomiSearchOrder(tokens.filterNot { it in hitomiSortTokens }, order == "sort:oldest",
+        when (order) { "sort:daily" -> "today"; "sort:weekly" -> "week"; else -> null })
+}
+
+internal val hitomiSortTokens = setOf("sort:newest", "sort:oldest", "sort:daily", "sort:weekly")
+
+internal fun filterPopularityRanking(
+    ranking: List<Long>, queries: List<List<String>>, matches: Map<String, Set<Long>>,
+): List<Long> = ranking.distinct().filter { id ->
+    queries.any { terms ->
+        val directId = terms.firstNotNullOfOrNull { it.removePrefix("id:").toLongOrNull()?.takeIf { value -> value > 0 } }
+        terms.all { term ->
+            when {
+                term.startsWith("-") -> id !in matches.getValue(term)
+                directId != null -> id == directId
+                else -> id in matches.getValue(term)
+            }
+        }
+    }
 }

@@ -3125,6 +3125,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun fetchSearchPage(queries: List<String>, page: Int): SearchResult = coroutineScope {
+        val popularity = queries.firstOrNull()?.let { com.doujinzip.android.network.parseHitomiSearchOrder(it).popularity }
+        if (popularity != null) return@coroutineScope hitomiClient.searchPopular(queries.distinct(), page, popularity)
         val results = queries.distinct().map { query -> async { hitomiClient.search(query, page) } }.awaitAll()
         combineLanguageSearchResults(results)
     }

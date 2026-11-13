@@ -653,4 +653,6 @@
     <string name="ui_server_scan_hint">같은 로컬 네트워크에서 검색합니다. 검색되지 않으면 고급에서 주소를 입력해 주세요.</string>
     <string name="ui_reset_cover">표지 초기화</string>
     <string name="ui_random_order">랜덤 나열</string>
+    <string name="ui_daily_popularity">일간 인기순</string>
+    <string name="ui_weekly_popularity">주간 인기순</string>
 </resources>
