@@ -423,9 +423,14 @@ private fun ChangelogScreen(contentPadding: PaddingValues, onBack: () -> Unit) {
     SettingsDetailLayout(strings[R.string.ui_changelog], contentPadding, onBack) {
         appChangelog.forEach { changelog ->
             SectionCard("v${changelog.version}") {
-                changelog.changes.forEach { change ->
-                    Text("• $change", modifier = Modifier.padding(vertical = 4.dp))
-                }
+                changelog.changes.groupBy { it.substringBefore("] ").removePrefix("[") }
+                    .forEach { (category, changes) ->
+                        Text(category, style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.padding(top = 8.dp))
+                        changes.forEach { change ->
+                            Text("• ${change.substringAfter("] ")}", modifier = Modifier.padding(vertical = 4.dp))
+                        }
+                    }
             }
         }
     }
