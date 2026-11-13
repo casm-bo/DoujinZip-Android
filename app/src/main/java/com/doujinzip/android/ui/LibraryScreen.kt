@@ -179,6 +179,13 @@ internal fun sortLibraryMainEntries(entries: List<LibraryMainEntry>, sort: Libra
         LibrarySort.ARTIST_DESC -> entries.sortedWith(libraryMainEntryArtistComparator(true))
         LibrarySort.NEWEST -> entries.sortedByDescending { it.modifiedAt }
         LibrarySort.OLDEST -> entries.sortedBy { it.modifiedAt }
+        LibrarySort.RANDOM -> entries.sortedBy {
+            val key = when (it) {
+                is LibraryMainEntry.Book -> "book:${it.book.id}"
+                is LibraryMainEntry.Series -> "series:${it.name}"
+            }
+            randomLibraryOrder(key)
+        }
     }
 
 private fun LibraryMainEntry.scrollKey(): String = when (this) {
@@ -1052,6 +1059,7 @@ internal fun LibrarySort.withDirection(ascending: Boolean): LibrarySort = when (
     LibrarySort.TITLE_ASC, LibrarySort.TITLE_DESC -> if (ascending) LibrarySort.TITLE_ASC else LibrarySort.TITLE_DESC
     LibrarySort.ARTIST_ASC, LibrarySort.ARTIST_DESC -> if (ascending) LibrarySort.ARTIST_ASC else LibrarySort.ARTIST_DESC
     LibrarySort.NEWEST, LibrarySort.OLDEST -> if (ascending) LibrarySort.OLDEST else LibrarySort.NEWEST
+    LibrarySort.RANDOM -> LibrarySort.RANDOM
 }
 
 @Composable
@@ -1069,10 +1077,12 @@ internal fun LibrarySortMenu(sort: LibrarySort, onSortChange: (LibrarySort) -> U
                     val option = field.withDirection(sort.isAscending())
                     ChoiceMenuItem(label, sort == option, onClick = { onSortChange(option); expanded = false; onMenuChange(false) })
                 }
+                ChoiceMenuItem(strings[R.string.ui_random_order], sort == LibrarySort.RANDOM,
+                    onClick = { onSortChange(LibrarySort.RANDOM); expanded = false; onMenuChange(false) })
             }
         }
         val direction = if (sort.isAscending()) strings[R.string.ui_ascending] else strings[R.string.ui_descending]
-        OutlinedIconButton(onClick = { onSortChange(sort.withDirection(!sort.isAscending())) },
+        OutlinedIconButton(onClick = { onSortChange(sort.withDirection(!sort.isAscending())) }, enabled = sort != LibrarySort.RANDOM,
             modifier = Modifier.semantics { contentDescription = strings[R.string.ui_toggle_sort_direction, (direction)] }) {
             Text(if (sort.isAscending()) "↑" else "↓", style = MaterialTheme.typography.titleLarge)
         }
@@ -1478,6 +1488,7 @@ private fun LibrarySeriesOverview(
             LibrarySort.OLDEST -> grouped.sortedBy { (_, seriesBooks) ->
                 seriesBooks.maxOfOrNull(LibraryBook::modifiedAt) ?: 0L
             }
+            LibrarySort.RANDOM -> grouped.sortedBy { randomLibraryOrder("series:${it.first}") }
         }
     }
     if (groups.isEmpty()) {
@@ -1893,7 +1904,11 @@ internal fun sortLibraryBooks(books: List<LibraryBook>, sort: LibrarySort): List
         LibrarySort.ARTIST_DESC -> books.sortedWith(libraryBookArtistComparator(descending = true))
         LibrarySort.NEWEST -> books.sortedByDescending(LibraryBook::modifiedAt)
         LibrarySort.OLDEST -> books.sortedBy(LibraryBook::modifiedAt)
+        LibrarySort.RANDOM -> books.sortedBy { randomLibraryOrder("book:${it.id}") }
     }
+
+// Stable for the same items so refreshes and filters preserve the relative order.
+private fun randomLibraryOrder(key: String): Long = kotlin.random.Random(key.hashCode()).nextLong()
 
 internal fun libraryFilterSignature(state: MainUiState): String = buildString {
     append(state.libraryQuery.length).append(':').append(state.libraryQuery)

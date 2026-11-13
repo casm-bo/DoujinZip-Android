@@ -62,7 +62,7 @@ enum class LibraryReadFilter { ALL, UNREAD, READ }
 
 enum class LibraryVisibilityFilter { VISIBLE, HIDDEN, ALL }
 
-enum class LibrarySort { TITLE_ASC, TITLE_DESC, ARTIST_ASC, ARTIST_DESC, NEWEST, OLDEST }
+enum class LibrarySort { TITLE_ASC, TITLE_DESC, ARTIST_ASC, ARTIST_DESC, NEWEST, OLDEST, RANDOM }
 
 enum class ViewerScale { FIT_SCREEN, FIT_WIDTH }
 

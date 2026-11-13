@@ -620,7 +620,10 @@ private fun BoxScope.SearchPageIndicator(listState: LazyGridState, index: Search
 }
 
 @Composable
-internal fun SearchSortMenu(query: String, enabled: Boolean, onSelect: (Boolean) -> Unit) {
+internal fun SearchSortMenu(
+    query: String, enabled: Boolean, randomSelected: Boolean = false, onRandom: (() -> Unit)? = null,
+    onSelect: (Boolean) -> Unit,
+) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     var expanded by remember { mutableStateOf(false) }
     val oldest = remember(query) { parseHitomiSearchOrder(query).oldest }
@@ -629,8 +632,11 @@ internal fun SearchSortMenu(query: String, enabled: Boolean, onSelect: (Boolean)
             ActionIcon(ActionSymbol.SORT); Spacer(Modifier.width(4.dp)); Text(strings[R.string.ui_sort])
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            ChoiceMenuItem(strings[R.string.ui_newest_first], !oldest, onClick = { expanded = false; onSelect(false) }, enabled = enabled)
-            ChoiceMenuItem(strings[R.string.ui_oldest_first], oldest, onClick = { expanded = false; onSelect(true) }, enabled = enabled)
+            ChoiceMenuItem(strings[R.string.ui_newest_first], !randomSelected && !oldest, onClick = { expanded = false; onSelect(false) }, enabled = enabled)
+            ChoiceMenuItem(strings[R.string.ui_oldest_first], !randomSelected && oldest, onClick = { expanded = false; onSelect(true) }, enabled = enabled)
+            if (onRandom != null) {
+                ChoiceMenuItem(strings[R.string.ui_random_order], randomSelected, onClick = { expanded = false; onRandom() })
+            }
         }
     }
 }

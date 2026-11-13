@@ -652,4 +652,5 @@
     <string name="ui_lan_permission_required">请允许访问本地网络以搜索并连接电脑。</string>
     <string name="ui_server_scan_hint">请使用同一本地网络。如果找不到电脑，请在高级选项中输入地址。</string>
     <string name="ui_reset_cover">重置封面</string>
+    <string name="ui_random_order">随机排序</string>
 </resources>

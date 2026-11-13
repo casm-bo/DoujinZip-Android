@@ -6,6 +6,13 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SubscriptionFeedTest {
+    @org.junit.Test fun randomFeedOrderUsesTheSameSeedAcrossReloads() {
+        val ids = (1L..50L).toList()
+        val order = com.doujinzip.android.ui.orderSubscriptionFeed(ids, false, 7L)
+        org.junit.Assert.assertEquals(ids, order.sorted())
+        org.junit.Assert.assertEquals(order, com.doujinzip.android.ui.orderSubscriptionFeed(ids.reversed(), true, 7L))
+        org.junit.Assert.assertNotEquals(order, com.doujinzip.android.ui.orderSubscriptionFeed(ids, false, 8L))
+    }
     @Test fun unchangedProbeSkipsFullScanUntilDailyCheckAndManualAlwaysScans() {
         assertFalse(subscriptionFeedFullRefreshDue(100,1,"same","same",false))
         assertTrue(subscriptionFeedFullRefreshDue(100,1,"old","new",false))

@@ -14,6 +14,14 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlin.random.Random
+
+internal fun orderSubscriptionFeed(ids: List<Long>, oldest: Boolean, randomSeed: Long?): List<Long> =
+    when {
+        randomSeed != null -> ids.sorted().shuffled(Random(randomSeed))
+        oldest -> ids.sorted()
+        else -> ids.sortedDescending()
+    }
 
 @Composable
 internal fun SubscriptionFeedScreen(
@@ -29,10 +37,14 @@ internal fun SubscriptionFeedScreen(
     val scopeKey=state.selectedProfileId.orEmpty()
     var excluded by remember(scopeKey) { mutableStateOf(preferences.getStringSet("excluded-$scopeKey",emptySet()).orEmpty().toSet()) }
     var oldest by remember(scopeKey) { mutableStateOf(preferences.getBoolean("oldest-$scopeKey",false)) }
+    var randomSeed by remember(scopeKey) {
+        mutableStateOf(preferences.getString("random-sort-$scopeKey", null)?.toLongOrNull())
+    }
     var filterMenu by remember { mutableStateOf(false) }
     val subscriptions=state.subscriptions.map { it.value }.filter { it.enabled && !it.deleted }
     val selected=subscriptions.filter { it.id !in excluded }
-    val signature=scopeKey+selected.flatMap { it.queries }.distinct().sorted().toString()+state.searchTagFilters.sortedBy { it.name }+state.customBlockedTags.sorted()+oldest
+    val signature=scopeKey+selected.flatMap { it.queries }.distinct().sorted().toString()+state.searchTagFilters.sortedBy { it.name }+state.customBlockedTags.sorted()+oldest +
+        (randomSeed?.let { "/random/$it" } ?: "")
     val session=remember(signature) { java.security.MessageDigest.getInstance("SHA-256").digest(signature.toByteArray()).joinToString("") { "%02x".format(it) } }
     val cache=remember { com.doujinzip.android.data.SearchResultCache(java.io.File(context.filesDir,"subscription-feed-v2")) }
     val listState=rememberLazyGridState()
@@ -95,7 +107,7 @@ internal fun SubscriptionFeedScreen(
                 return@LaunchedEffect
             }
             val loadedIds=loadIds(selected)
-            val fresh=if(oldest) loadedIds.sorted() else loadedIds.sortedDescending()
+            val fresh = orderSubscriptionFeed(loadedIds, oldest, randomSeed)
             val existing=ids.toHashSet()
             if(indexReady && revision==0 && fresh.any { it !in existing }) {
                 if(cache.writeIndex(com.doujinzip.android.data.SearchResultIndex("$session-pending",emptyList(),listOf(fresh)))) {
@@ -143,8 +155,15 @@ internal fun SubscriptionFeedScreen(
                     }
                 }
             }
-            SearchSortMenu(if(oldest) "sort:oldest" else "sort:newest",enabled=!busy) {
-                oldest=it;preferences.edit().putBoolean("oldest-$scopeKey",it).apply()
+            SearchSortMenu(if(oldest) "sort:oldest" else "sort:newest",enabled=!busy,
+                randomSelected = randomSeed != null, onRandom = {
+                    val seed = Random.nextLong()
+                    randomSeed = seed
+                    preferences.edit().putString("random-sort-$scopeKey", seed.toString()).apply()
+                }) {
+                randomSeed = null
+                oldest = it
+                preferences.edit().putBoolean("oldest-$scopeKey",it).remove("random-sort-$scopeKey").apply()
             }
         }
         if(pendingIds.isNotEmpty()) TextButton({revision++},enabled=!busy) { Text(strings[R.string.feed_new_items]) }

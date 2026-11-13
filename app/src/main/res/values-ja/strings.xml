@@ -652,4 +652,5 @@
     <string name="ui_lan_permission_required">PCの検索と接続にはローカルネットワークへのアクセスを許可してください。</string>
     <string name="ui_server_scan_hint">同じローカルネットワークで検索します。見つからない場合は詳細からアドレスを入力してください。</string>
     <string name="ui_reset_cover">表紙をリセット</string>
+    <string name="ui_random_order">ランダム順</string>
 </resources>
