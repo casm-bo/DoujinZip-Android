@@ -3,6 +3,11 @@ package com.doujinzip.android.ui
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.*
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.unit.dp
@@ -25,6 +30,22 @@ class SubscriptionFeedScreenTest {
         compose.activityRule.scenario.onActivity { it.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     }
     private fun gallery(id:Long)=GallerySummary(id,"Synthetic $id",artists=emptyList(),series=emptyList(),galleryType=null,thumbnailUrl=null,pageCount=1,language=null,tags=emptyList())
+    @Test fun narrowFeedWrapsControlsAtLargeFontSize() {
+        compose.setContent { DoujinZipTheme {
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 1.6f)) {
+                Box(Modifier.width(200.dp)) {
+                    SubscriptionFeedScreen(MainUiState(), PaddingValues(0.dp), false, 2,
+                        loadIds = { emptyList() }, loadGallery = { gallery(it) }, onLoaded = {},
+                        onBack = {}, onOpen = {}, onLongClick = {}, onFavorite = {}, onFacet = {})
+                }
+            }
+        } }
+        fun control(id: Int) = compose.onNodeWithText(strings.getString(id)).assertIsDisplayed()
+        assertTrue(control(R.string.ui_refresh).getUnclippedBoundsInRoot().top >
+            control(R.string.feed_title).getUnclippedBoundsInRoot().top)
+        control(R.string.ui_sort).performClick()
+        control(R.string.ui_oldest_first)
+    }
     @Test fun pagesAllResultsAndRetriesFailedItemsWithoutSkippingThem() {
         val loaded=mutableListOf<Long>()
         var fail=true

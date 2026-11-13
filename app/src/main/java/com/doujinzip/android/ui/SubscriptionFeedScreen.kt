@@ -126,11 +126,11 @@ internal fun SubscriptionFeedScreen(
     BackHandler(onBack=onBack)
     val books=remember(state.libraryBooks,state.libraryHiddenIds) { preferredLibraryBooksByGalleryId(state.libraryBooks,state.libraryHiddenIds) }
     Column(Modifier.fillMaxSize().padding(padding)) {
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+        FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
             TextButton(onBack) { ActionIcon(ActionSymbol.BACK); Text(strings[R.string.feed_title]) }
             TextButton({revision++},enabled=!busy) { ActionIcon(ActionSymbol.REFRESH); Text(strings[R.string.ui_refresh]) }
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),horizontalArrangement=Arrangement.SpaceBetween) {
+        FlowRow(Modifier.fillMaxWidth().padding(horizontal=12.dp),horizontalArrangement=Arrangement.SpaceBetween) {
             Box {
                 OutlinedButton({filterMenu=true}) { ActionIcon(ActionSymbol.FILTER); Text(strings[R.string.feed_filter]) }
                 DropdownMenu(filterMenu,{filterMenu=false}) {
