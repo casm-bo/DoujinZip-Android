@@ -20,6 +20,7 @@ class SubscriptionUiTest {
         val reads=mutableListOf<Long?>()
         compose.setContent { MaterialTheme { SubscriptionScreen(MainUiState(subscriptionNotices=listOf(SubscriptionNotice(42,"Synthetic release","Example",null,false,listOf("Example subscription")))),{}, {}, {}, {reads+=it}, {}, {}, {_,_->}, {}) } }
         compose.onNodeWithText("Synthetic release").assertIsDisplayed()
+        compose.onNodeWithText(text(R.string.sub_unread), useUnmergedTree = true).assertIsDisplayed()
         assertTrue(reads.isEmpty())
         compose.onNodeWithText("Synthetic release").performClick()
         assertEquals(listOf(42L),reads)

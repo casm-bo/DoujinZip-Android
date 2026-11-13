@@ -155,7 +155,9 @@ internal fun WorkCard(
             Text(metadata, style = typography.labelSmall, minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val displayTags = if (webtoon) listOf(CardTag(TagDisplayInfo(androidx.compose.ui.platform.LocalResources.current[com.doujinzip.android.R.string.ui_webtoon_tag], TagStyle.DEFAULT))) +
                 tags.filterNot { it.info.text.equals("webtoon", true) } else tags
-            WorkTags(displayTags, rows, Modifier.fillMaxWidth().height(tagHeight * rows + 3.dp * (rows - 1)))
+            if (displayTags.isNotEmpty()) {
+                WorkTags(displayTags, rows, Modifier.fillMaxWidth().height(tagHeight * rows + 3.dp * (rows - 1)))
+            }
             Text(footer, color = if (footerError) MaterialTheme.colorScheme.error else LocalContentColor.current, style = typography.labelSmall, minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
