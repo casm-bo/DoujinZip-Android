@@ -235,9 +235,8 @@ internal fun FacetSection(
                     else -> "$prefix:$value"
                 }
                 val display = if (prefix == "tag") tagDisplayInfo(value) else null
-                CopyableFacetChip(
+                SearchableFacetChip(
                     text = display?.text ?: value.replace('_', ' '),
-                    clipboardText = if (prefix == "artist") value else facet,
                     tagStyle = display?.style ?: TagStyle.DEFAULT,
                     onClick = { onSearchFacet(facet) },
                     enabled = enabled,

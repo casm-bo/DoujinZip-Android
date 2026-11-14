@@ -433,7 +433,6 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
                     onLoadPreview = viewModel::loadReader,
                     onBack = searchBack,
                     onOpenReader = { page -> viewModel.openOnlineReaderTab(galleryId, page) },
-                    onOpenInNewTab = { openGalleryInNewTab(galleryId) },
                     onSearchFacet = { facet ->
                         viewModel.searchFromFacet(facet)
                     },

@@ -3,10 +3,6 @@ package com.doujinzip.android.ui
 import com.doujinzip.android.model.ReaderPosition
 import com.doujinzip.android.R
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -75,7 +71,6 @@ fun GalleryDetailScreen(
     webtoon: Boolean = false,
     tabBar: (@Composable () -> Unit)? = null,
     onRefresh: (Long) -> Unit = {},
-    onOpenInNewTab: (() -> Unit)? = null,
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     Scaffold(
@@ -117,7 +112,7 @@ fun GalleryDetailScreen(
                         DetailHeader(preferredLocalizedTitle(gallery.title), gallery.presentation().metadata,
                             gallery.thumbnailUrl?.let { hitomiImageRequest(context, it, gallery.id, crossfade = false) },
                             gallery.pageCount, onSearchFacet = onSearchFacet, onSearchLanguage = onSearchLanguage, options = options,
-                            webtoon = webtoon, onOpenInNewTab = onOpenInNewTab)
+                            webtoon = webtoon)
                         val pendingRequest = state.downloadRequests.any { it.galleryId == gallery.id && (!it.isFinished || it.status == RequestStatus.SENT) }
                         val downloaded = state.hasDownloadedGallery(gallery.id)
                         val queuedDownload = state.downloadQueue.firstOrNull {
@@ -206,26 +201,23 @@ internal fun MainUiState.allDownloadDestinationsOwned(galleryId: Long, requests:
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-internal fun CopyableFacetChip(
+internal fun SearchableFacetChip(
     text: String,
-    clipboardText: String = text,
     tagStyle: TagStyle = TagStyle.DEFAULT,
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
-    val context = LocalContext.current
     val hapticFeedback = LocalHapticFeedback.current
     val (containerColor, contentColor) = tagColors(tagStyle)
     Surface(
         modifier = Modifier.combinedClickable(
             enabled = enabled,
             onClick = onClick,
+            onLongClickLabel = strings[R.string.ui_open_in_new_tab],
             onLongClick = {
                 hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("gallery metadata", clipboardText))
-                Toast.makeText(context, strings[R.string.ui_copied_to_clipboard], Toast.LENGTH_SHORT).show()
+                onClick()
             },
         ),
         shape = RoundedCornerShape(if (tagStyle == TagStyle.DEFAULT) 8.dp else 50.dp),
