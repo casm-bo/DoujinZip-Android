@@ -68,6 +68,7 @@ fun LibraryDetailScreen(
     options: (@Composable () -> Unit)? = null,
     webtoon: Boolean = false,
     tabBar: (@Composable () -> Unit)? = null,
+    onSearchTagInBackground: ((String) -> Unit)? = null,
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     Scaffold(
@@ -102,7 +103,8 @@ fun LibraryDetailScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         DetailHeader(book.title, metadata,
                             book.coverUri.takeIf { it.isNotBlank() }?.let { libraryImageRequest(context, it, book.cloudToken) },
-                            book.pages.size, onSearchFacet = onSearchFacet, onSearchLanguage = onSearchLanguage, options = options, webtoon = webtoon)
+                            book.pages.size, onSearchFacet = onSearchFacet, onSearchLanguage = onSearchLanguage, options = options,
+                            webtoon = webtoon, onSearchTagInBackground = onSearchTagInBackground)
                         val readerEnabled = !isLoading && book.pages.all { it.uri.isNotBlank() }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -222,6 +224,7 @@ internal fun FacetSection(
     prefix: String,
     onSearchFacet: (String) -> Unit,
     rawValue: Boolean = false,
+    onSearchInBackground: ((String) -> Unit)? = null,
 ) {
     if (values.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -239,6 +242,7 @@ internal fun FacetSection(
                     text = display?.text ?: value.replace('_', ' '),
                     tagStyle = display?.style ?: TagStyle.DEFAULT,
                     onClick = { onSearchFacet(facet) },
+                    onSearchInBackground = onSearchInBackground?.let { search -> { search(facet) } },
                     enabled = enabled,
                 )
             }

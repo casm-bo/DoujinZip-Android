@@ -368,6 +368,7 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
                     },
                     webtoon = currentBook?.let { book -> runCatching { viewModel.uiState.presentations[book.presentationKey()]?.value?.webtoon == true }.getOrDefault(false) } == true,
                     tabBar = { AppGalleryTabStrip(viewModel, onBack = galleryBack) },
+                    onSearchTagInBackground = viewModel::searchFromFacetInBackground,
                 )
             }
             composable(
@@ -453,6 +454,7 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
                     },
                     webtoon = viewModel.uiState.presentations["hitomi:$galleryId"]?.value?.webtoon == true,
                     tabBar = { AppSearchTabStrip(viewModel, onBack = searchBack) },
+                    onSearchTagInBackground = viewModel::searchFromFacetInBackground,
                 )
             }
             composable(

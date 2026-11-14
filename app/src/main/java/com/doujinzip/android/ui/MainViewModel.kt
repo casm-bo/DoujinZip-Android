@@ -992,6 +992,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         openSearchTab(normalizedFacet, uiState.preferredLanguages)
     }
 
+    fun searchFromFacetInBackground(facet: String) {
+        val query = normalizeFilterFacet(facet)
+        val languages = uiState.preferredLanguages
+        val current = uiState.browserWorkspace
+        val existing = current.selectSearchTab(query, languages, keepActivePage = true)
+        val workspace = existing?.updateActiveSearch { search ->
+            if (search.currentPage == 0 && search.submittedQuery.isBlank()) search.copy(submittedQuery = search.query) else search
+        }?.copy(activeTabId = current.activeTabId)
+            ?: current.openTab(BrowserPage.Search(query = query, preferredLanguages = languages, submittedQuery = query), activate = false)
+        if (workspace == current) return
+        uiState = uiState.copy(browserWorkspace = workspace)
+        browserPreferenceStore.saveBrowserWorkspace(workspace)
+        if (existing == null) notifyNewTab()
+    }
+
     private var serverScanJob: kotlinx.coroutines.Job? = null
     fun scanServers() {
         val previous = serverScanJob
@@ -3128,8 +3143,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun ensureSearchResults() {
-        if (uiState.searchResultWindow == null && !uiState.isRestoringSearch &&
-            (activeSearchPage()?.currentPage ?: 0) > 0) restoreBrowserSearch()
+        val search = activeSearchPage() ?: return
+        if (uiState.searchResultWindow != null || uiState.isRestoringSearch) return
+        if (search.currentPage > 0) restoreBrowserSearch()
+        else if (search.submittedQuery.isNotBlank() && browserSearchJob?.isActive != true) startBrowserSearch(reset = true)
     }
 
     private fun cancelSearchWindow() {

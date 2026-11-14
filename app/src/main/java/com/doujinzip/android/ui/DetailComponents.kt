@@ -54,7 +54,7 @@ internal fun DetailImage(model: Any?, contentDescription: String?, modifier: Mod
 @Composable
 internal fun DetailHeader(title: String, metadata: LibraryMetadata, coverModel: Any?, pageCount: Int, information: String? = null,
     onSearchFacet: (String) -> Unit, onSearchLanguage: (String) -> Unit, options: (@Composable () -> Unit)? = null,
-    webtoon: Boolean = false) {
+    webtoon: Boolean = false, onSearchTagInBackground: ((String) -> Unit)? = null) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         if (coverModel != null) DetailImage(coverModel, title, Modifier.fillMaxWidth().height(390.dp))
@@ -68,7 +68,7 @@ internal fun DetailHeader(title: String, metadata: LibraryMetadata, coverModel: 
         FacetSection(strings[R.string.ui_character], metadata.characters, "character", onSearchFacet)
         metadata.galleryType?.let { FacetSection(strings[R.string.ui_type], listOf(it), "type", onSearchFacet) }
         metadata.language?.let { FacetSection(strings[R.string.ui_language], listOf(it), "language", onSearchLanguage, rawValue = true) }
-        FacetSection(strings[R.string.ui_tags], metadata.tags, "tag", onSearchFacet)
+        FacetSection(strings[R.string.ui_tags], metadata.tags, "tag", onSearchFacet, onSearchInBackground = onSearchTagInBackground)
         if (webtoon) TagPill(TagDisplayInfo(strings[R.string.ui_webtoon_tag], TagStyle.DEFAULT))
         Text(listOfNotNull(metadata.hitomiId?.let { "ID $it" }, strings[R.string.ui_pages, pageCount],
             formatGalleryPublishedDate(metadata.publishedDate)?.let { strings[R.string.ui_uploaded, it] }, information?.takeIf { it.isNotBlank() }).joinToString(" · "),

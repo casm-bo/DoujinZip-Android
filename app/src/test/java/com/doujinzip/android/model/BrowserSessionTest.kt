@@ -264,6 +264,21 @@ class BrowserSessionTest {
     }
 
     @Test
+    fun backgroundSearchReusesAnotherTabWithoutRewindingTheActiveGallery() {
+        val query = "tag:sample"
+        val gallery = BrowserPage.OnlineGallery(42, "Fixture")
+        val origin = BrowserWorkspace.initial(BrowserPage.Search(query = query)).pushPage(gallery)
+        assertNull(origin.selectSearchTab(query, keepActivePage = true))
+
+        val workspace = origin.openTab(BrowserPage.Search(query = query), activate = false)
+        val selected = requireNotNull(workspace.selectSearchTab(query, keepActivePage = true))
+
+        assertEquals(workspace.tabs.last().id, selected.activeTabId)
+        assertEquals(gallery, selected.copy(activeTabId = origin.activeTabId).activeTab.currentPage)
+        assertEquals(workspace.tabs.size, selected.tabs.size)
+    }
+
+    @Test
     fun missingSearchCreatesStandaloneTabWithoutBackHistory() {
         val workspace = BrowserWorkspace.initial(BrowserPage.Search(query = "tag:first"))
         val query = "tag:second"

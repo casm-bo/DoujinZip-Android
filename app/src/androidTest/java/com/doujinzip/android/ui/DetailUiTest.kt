@@ -14,15 +14,21 @@ import org.junit.Test
 
 class DetailUiTest {
     @get:Rule val compose = createComposeRule()
-    @Test fun longPressOnDetailTagStartsTheSameSearchAsTap() {
+    @Test fun longPressOnDetailTagUsesBackgroundSearch() {
         val searches = mutableListOf<String>()
+        val backgroundSearches = mutableListOf<String>()
         compose.setContent { DoujinZipTheme {
             DetailHeader("Fixture", LibraryMetadata(tags = listOf("female:fixture_tag")), null, 1,
-                onSearchFacet = { searches.add(it) }, onSearchLanguage = {})
+                onSearchFacet = { searches.add(it) }, onSearchLanguage = {},
+                onSearchTagInBackground = { backgroundSearches.add(it) })
         } }
         compose.onNodeWithText("fixture_tag").performTouchInput { longClick() }
+        compose.runOnIdle {
+            assertTrue(searches.isEmpty())
+            assertEquals(listOf("female:fixture_tag"), backgroundSearches)
+        }
         compose.onNodeWithText("fixture_tag").performClick()
-        compose.runOnIdle { assertEquals(listOf("female:fixture_tag", "female:fixture_tag"), searches) }
+        compose.runOnIdle { assertEquals(listOf("female:fixture_tag"), searches) }
     }
     @Test fun coverResetIsAnExplicitDetailAction() {
         val strings = InstrumentationRegistry.getInstrumentation().targetContext.resources

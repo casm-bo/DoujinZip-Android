@@ -76,6 +76,7 @@
     <string name="ui_remove_language">"言語を削除"</string>
     <string name="ui_remove_language_6332b0">"言語「%1$s」を削除しますか？"</string>
     <string name="ui_open_in_new_tab">"新しいタブで開く"</string>
+    <string name="ui_open_in_background_tab">"バックグラウンドのタブで開く"</string>
     <string name="ui_thumbnail">"%1$sのサムネイル"</string>
     <string name="ui_no_artist_information">"作家情報なし"</string>
     <string name="ui_pages">"%1$sページ"</string>

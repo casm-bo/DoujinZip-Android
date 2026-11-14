@@ -71,6 +71,7 @@ fun GalleryDetailScreen(
     webtoon: Boolean = false,
     tabBar: (@Composable () -> Unit)? = null,
     onRefresh: (Long) -> Unit = {},
+    onSearchTagInBackground: ((String) -> Unit)? = null,
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     Scaffold(
@@ -112,6 +113,7 @@ fun GalleryDetailScreen(
                         DetailHeader(preferredLocalizedTitle(gallery.title), gallery.presentation().metadata,
                             gallery.thumbnailUrl?.let { hitomiImageRequest(context, it, gallery.id, crossfade = false) },
                             gallery.pageCount, onSearchFacet = onSearchFacet, onSearchLanguage = onSearchLanguage, options = options,
+                            onSearchTagInBackground = onSearchTagInBackground,
                             webtoon = webtoon)
                         val pendingRequest = state.downloadRequests.any { it.galleryId == gallery.id && (!it.isFinished || it.status == RequestStatus.SENT) }
                         val downloaded = state.hasDownloadedGallery(gallery.id)
@@ -206,6 +208,7 @@ internal fun SearchableFacetChip(
     tagStyle: TagStyle = TagStyle.DEFAULT,
     enabled: Boolean,
     onClick: () -> Unit,
+    onSearchInBackground: (() -> Unit)? = null,
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
     val hapticFeedback = LocalHapticFeedback.current
@@ -214,10 +217,10 @@ internal fun SearchableFacetChip(
         modifier = Modifier.combinedClickable(
             enabled = enabled,
             onClick = onClick,
-            onLongClickLabel = strings[R.string.ui_open_in_new_tab],
+            onLongClickLabel = strings[if (onSearchInBackground == null) R.string.ui_open_in_new_tab else R.string.ui_open_in_background_tab],
             onLongClick = {
                 hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                onClick()
+                (onSearchInBackground ?: onClick)()
             },
         ),
         shape = RoundedCornerShape(if (tagStyle == TagStyle.DEFAULT) 8.dp else 50.dp),

@@ -174,11 +174,14 @@ fun BrowserWorkspace.updateLibraryScroll(pageKey: String, anchor: String?, index
 fun BrowserWorkspace.selectSearchTab(
     query: String,
     preferredLanguages: Set<String> = emptySet(),
+    keepActivePage: Boolean = false,
 ): BrowserWorkspace? {
     val queryKey = searchTabKey(query, preferredLanguages)
     val archivedTabs = groups.flatMap { it.archivedTabs }
     (listOf(activeTab) + tabs.filterNot { it.id == activeTabId } + archivedTabs).forEach { tab ->
-        val index = (listOf(tab.currentIndex) + tab.history.indices.reversed()).firstOrNull { index ->
+        val candidates = if (keepActivePage && tab.id == activeTabId) listOf(tab.currentIndex)
+            else listOf(tab.currentIndex) + tab.history.indices.reversed()
+        val index = candidates.firstOrNull { index ->
             val page = tab.history[index] as? BrowserPage.Search
             page != null && searchTabKey(page.query, page.preferredLanguages) == queryKey
         } ?: return@forEach
