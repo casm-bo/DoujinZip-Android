@@ -160,6 +160,10 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
     }
     val lifecycleOwner = LocalLifecycleOwner.current
     var lastMainDestination by rememberSaveable { mutableStateOf(viewModel.initialMainDestination()) }
+    fun selectMainDestination(route: String) {
+        lastMainDestination = route
+        viewModel.rememberMainDestination(route)
+    }
     var lastShownNewTabNotice by rememberSaveable { mutableStateOf(0) }
     if(viewModel.uiState.showSubscriptions) androidx.compose.ui.window.Dialog(onDismissRequest=viewModel::closeSubscriptions,
         properties=androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth=false,securePolicy=androidx.compose.ui.window.SecureFlagPolicy.Inherit)) {
@@ -168,7 +172,7 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
                 {viewModel.refreshSubscriptions(true)}, {viewModel.markSubscriptionRead(it, returnToSubscriptionNotices = true)}, viewModel::editSubscription,
                 viewModel::saveSubscription,viewModel::resolveSubscription,{ value ->
                     viewModel.closeSubscriptions()
-                    lastMainDestination=MainDestination.Browser.route
+                    selectMainDestination(MainDestination.Browser.route)
                     viewModel.searchFavorite(com.doujinzip.android.model.SearchFavorite(value.id,value.name,value.query,value.languages))
                     navController.navigate("main") { popUpTo("main");launchSingleTop=true }
                 }, onQueryChange=viewModel::setSubscriptionQuery,onLoadLanguages=viewModel::loadAvailableLanguages,
@@ -221,11 +225,11 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
         if (restoringMain && (page is BrowserPage.Search || page is BrowserPage.LibraryHome)) return@LaunchedEffect
         when (page) {
             is BrowserPage.LibraryHome -> {
-                lastMainDestination = MainDestination.Library.route
+                selectMainDestination(MainDestination.Library.route)
                 navController.popBackStack("main", inclusive = false)
             }
             is BrowserPage.Search -> {
-                lastMainDestination = MainDestination.Browser.route
+                selectMainDestination(MainDestination.Browser.route)
                 navController.popBackStack("main", inclusive = false)
             }
             is BrowserPage.OnlineGallery -> navController.navigate("gallery/${page.galleryId}") {
@@ -290,8 +294,8 @@ fun DoujinZipApp(viewModel: MainViewModel = viewModel()) {
             composable("main") {
                 MainShell(
                     viewModel = viewModel,
-                    initialDestinationRoute = lastMainDestination,
-                    onDestinationChanged = { lastMainDestination = it; viewModel.rememberMainDestination(it) },
+                    selectedRoute = lastMainDestination,
+                    onDestinationChanged = ::selectMainDestination,
                     onGalleryClick = {
                         val libraryBookId = viewModel.libraryBookIdForGallery(it)
                         if (libraryBookId != null) {
@@ -615,24 +619,20 @@ private fun AppGalleryTabStrip(viewModel: MainViewModel, onBack: (() -> Unit)? =
 @Composable
 private fun MainShell(
     viewModel: MainViewModel,
-    initialDestinationRoute: String,
+    selectedRoute: String,
     onDestinationChanged: (String) -> Unit,
     onGalleryClick: (Long) -> Unit,
     onGalleryLongClick: (Long) -> Unit,
     onLibraryBookClick: (String) -> Unit,
 ) {
     val strings = androidx.compose.ui.platform.LocalResources.current
-    var selectedRoute by rememberSaveable(initialDestinationRoute) { mutableStateOf(initialDestinationRoute) }
     val inlineSearch = remember(selectedRoute) { InlineSearchState() }
     val selected = MainDestination.entries.firstOrNull { it.route == selectedRoute }
         ?: MainDestination.Browser
-    LaunchedEffect(selectedRoute) {
-        onDestinationChanged(selectedRoute)
-    }
     val navigate: (MainDestination) -> Unit = { destination ->
         if (destination != selected) {
             viewModel.activateMainWorkspace(destination.route)
-            selectedRoute = destination.route
+            onDestinationChanged(destination.route)
         }
     }
     BackHandler(
@@ -652,7 +652,7 @@ private fun MainShell(
     )
 
     LaunchedEffect(viewModel.uiState.settingsSectionRequest) {
-        if (viewModel.uiState.settingsSectionRequest != null) selectedRoute = MainDestination.Settings.route
+        if (viewModel.uiState.settingsSectionRequest != null) onDestinationChanged(MainDestination.Settings.route)
     }
     val content: @Composable (PaddingValues) -> Unit = { padding ->
         MainTabContent(

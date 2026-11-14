@@ -113,6 +113,28 @@ class NewTabNavigationTest {
         }
     }
 
+    @Test fun facetSearchFromVisibleGallerySelectsSearchAndBackRestoresGallery() = withModel { model ->
+        val context = instrumentation.targetContext
+        lateinit var back: OnBackPressedDispatcher
+        compose.setContent { DoujinZipTheme {
+            back = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
+            DoujinZipApp(model)
+        } }
+        val galleryTab = compose.onNodeWithText(context.getString(R.string.ui_gallery), ignoreCase = true)
+        galleryTab.performClick().assertIsSelected()
+        compose.runOnIdle { model.selectLibrarySeries("Synthetic origin") }
+        compose.waitForIdle()
+        compose.runOnIdle { model.searchFromFacet("tag:synthetic_fixture") }
+        val searchTab = compose.onNodeWithText(context.getString(R.string.ui_search), ignoreCase = true)
+        searchTab.assertIsSelected()
+        compose.onNodeWithText(context.getString(R.string.feed_title)).assertIsDisplayed()
+        compose.runOnIdle { back.onBackPressed() }
+        compose.runOnIdle {
+            assertEquals("Synthetic origin", (model.activeBrowserPage() as BrowserPage.LibrarySeries).name)
+            assertEquals(2, model.uiState.browserWorkspace.tabs.size)
+        }
+    }
+
     private fun withModel(check: (MainViewModel) -> Unit) {
         val context = instrumentation.targetContext
         check(context.packageName.endsWith(".uitest"))
