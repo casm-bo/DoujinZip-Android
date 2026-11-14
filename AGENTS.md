@@ -28,6 +28,10 @@ Commit rules:
 - Do not amend, squash, rebase, or push unless explicitly requested.
 - If changes cannot be separated safely, stop and ask before committing.
 
+## Android Device Testing
+
+- After UI tests, uninstall `com.doujinzip.android.uitest` and `com.doujinzip.android.uitest.test` from every device or emulator used, even if tests fail or are interrupted. Verify that both packages are gone before handing back the device. Preserve the installed debug and release apps.
+
 ## Default Skills
 
 Always use:
